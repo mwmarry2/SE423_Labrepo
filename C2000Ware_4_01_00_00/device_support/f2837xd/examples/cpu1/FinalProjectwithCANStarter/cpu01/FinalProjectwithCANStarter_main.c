@@ -603,6 +603,9 @@ void main(void)
             } else if (readbuttons() == 5) {
                 UART_printfLine(1,"Ox:%.2f:Oy:%.2f:Oa%.2f",OPTITRACKps.x,OPTITRACKps.y,OPTITRACKps.theta);
                 UART_printfLine(2,"State:%d : %d",RobotState,statePos);
+			} else if (readbuttons() == 6) {
+				UART_printfLine(1,"D1 %ld D2 %ld",dis_1,dis_2);
+                UART_printfLine(2,"St1 %ld St2 %ld",measure_status_1,measure_status_2);
             }
 
             UARTPrint = 0;

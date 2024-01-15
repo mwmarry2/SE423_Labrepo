@@ -463,6 +463,8 @@ void main(void)
             serial_printf(&SerialA,"LV1:%.3f LV2:%.3f Fr:%.3f Ri:%.3f\r\n",printLV1,printLV2,LADARfront,LADARrightfront);
             UART_printfLine(1,"LV1:%.3f LV2:%.3f",printLV1,printLV2);
             UART_printfLine(2,"F%.4f R%.4f",LADARfront,LADARrightfront);
+//			UART_printfLine(1,"D1 %ld D2 %ld",dis_1,dis_2);
+//            UART_printfLine(2,"St1 %ld St2 %ld",measure_status_1,measure_status_2);
             UARTPrint = 0;
         }
     }
