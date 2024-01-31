@@ -31,13 +31,60 @@ __interrupt void cpu_timer0_isr(void);
 __interrupt void cpu_timer1_isr(void);
 __interrupt void cpu_timer2_isr(void);
 __interrupt void SWI_isr(void);
+void SetLEDsOnOff(int16_t LEDvalue){
+    if ((LEDvalue & 0x1) == 0x1){
+        GpioDataRegs.GPASET.bit.GPIO22 = 1;
+    }else{
+        GpioDataRegs.GPACLEAR.bit.GPIO22 = 1;
+    }
+    if ((LEDvalue & 0x2) == 0x2){
+        GpioDataRegs.GPCSET.bit.GPIO94 = 1;
+    }else{
+        GpioDataRegs.GPCCLEAR.bit.GPIO94 = 1;
+    }
+    if ((LEDvalue & 0x4) == 0x4){
+        GpioDataRegs.GPCSET.bit.GPIO95 = 1;
+    }else{
+        GpioDataRegs.GPCCLEAR.bit.GPIO95 = 1;
+    }
+    if ((LEDvalue & 0x8) == 0x8){
+        GpioDataRegs.GPDSET.bit.GPIO97 = 1;
+    }else{
+        GpioDataRegs.GPDCLEAR.bit.GPIO97 = 1;
+    }
+    if ((LEDvalue &0x10) == 0x10){
+        GpioDataRegs.GPDSET.bit.GPIO111 = 1;
+    }
+    else{
+        GpioDataRegs.GPDCLEAR.bit.GPIO111 = 1;
+    }
+}
 
+int16_t ReadSwitches(void){
+    int16_t state=0;
+
+    if(GpioDataRegs.GPEDAT.bit.GPIO157 == 0){
+        state |= 0x1;
+    }
+    if(GpioDataRegs.GPEDAT.bit.GPIO158==0){
+        state |= 0x2;
+    }
+    if(GpioDataRegs.GPEDAT.bit.GPIO159==0){
+        state |= 0x4;
+    }
+    if(GpioDataRegs.GPFDAT.bit.GPIO160==0){
+        state |= 0x8;
+    }
+    return state;
+}
 // Count variables
+uint16_t stateg=0;
 uint32_t numTimer0calls = 0;
 uint32_t numSWIcalls = 0;
 extern uint32_t numRXA;
 uint16_t UARTPrint = 0;
-
+uint32_t numTimer2calls = 0;
+uint16_t LEDvalue = 0;
 
 void main(void)
 {
@@ -192,11 +239,11 @@ void main(void)
     // 200MHz CPU Freq,                       Period (in uSeconds)
     ConfigCpuTimer(&CpuTimer0, LAUNCHPAD_CPU_FREQUENCY, 10000);
     ConfigCpuTimer(&CpuTimer1, LAUNCHPAD_CPU_FREQUENCY, 20000);
-    ConfigCpuTimer(&CpuTimer2, LAUNCHPAD_CPU_FREQUENCY, 40000);
+    ConfigCpuTimer(&CpuTimer2, LAUNCHPAD_CPU_FREQUENCY, 250000);
 
     // Enable CpuTimer Interrupt bit TIE
-    CpuTimer0Regs.TCR.all = 0x4000;
-    CpuTimer1Regs.TCR.all = 0x4000;
+    //CpuTimer0Regs.TCR.all = 0x4000;
+    //CpuTimer1Regs.TCR.all = 0x4000;
     CpuTimer2Regs.TCR.all = 0x4000;
 
     init_serialSCIA(&SerialA,115200);
@@ -228,10 +275,10 @@ void main(void)
     while(1)
     {
         if (UARTPrint == 1 ) {
-			serial_printf(&SerialA,"Num Timer2:%ld Num SerialRX: %ld\r\n",CpuTimer2.InterruptCount,numRXA);
-            UART_printfLine(1,"Timer2 Calls %ld",CpuTimer2.InterruptCount);
+			serial_printf(&SerialA,"numTimer2calls:%ld Num SerialRX: %ld state:%d\r\n",numTimer2calls,numRXA,stateg);
+            UART_printfLine(1,"Timer2 Calls %ld",numTimer2calls);
             UART_printfLine(2,"Num SerialRX %ld",numRXA);
-            UARTPrint = 0;   //Since this is an idle loop and always running, we are using this section of the code to run an update when somewhere else in our code sets UARTPrint to 1. Since we want this to only activate once when the conditions are met outside of this loop, we need to make sure we reset this so we set UATRPrint to 0 as it waits to get updated to 1 again.
+            UARTPrint = 0;
         }
     }
 }
@@ -268,9 +315,9 @@ __interrupt void cpu_timer0_isr(void)
 //        PieCtrlRegs.PIEIFR12.bit.INTx9 = 1;  // Manually cause the interrupt for the SWI
 //    }
 
-    if ((numTimer0calls%3) == 0) {
+    if ((numTimer0calls%5) == 0) {
 		// Blink LaunchPad Red LED
-		GpioDataRegs.GPDTOGGLE.bit.GPIO111 = 1;
+		GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
     }
 
 
@@ -290,11 +337,14 @@ __interrupt void cpu_timer2_isr(void)
 {
 	// Blink LaunchPad Blue LED
     GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1;
-
+    stateg=ReadSwitches();
+    SetLEDsOnOff(stateg);
+    numTimer2calls++;
+    UARTPrint = 1;
     CpuTimer2.InterruptCount++;
 	
-	if ((CpuTimer2.InterruptCount % 10) == 0) {
-		UARTPrint = 1;
-	}
+	//if ((CpuTimer2.InterruptCount % 10) == 0) {
+		//UARTPrint = 1;
+	//}
 }
 
