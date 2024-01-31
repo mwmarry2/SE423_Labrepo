@@ -42,51 +42,51 @@ float x1 = 6.0;
 float x2 = 2.3;
 float x3 = 7.3;
 float x4 = 7.1;
-void SetLEDsOnOff(int16_t LEDvalue){
-    if ((LEDvalue & 0x1) == 0x1){
-        GpioDataRegs.GPASET.bit.GPIO22 = 1;
+void SetLEDsOnOff(int16_t LEDvalue){  //starts a function that doesn't return anything and takes in a 16 bit integer, LEDvalue
+    if ((LEDvalue & 0x1) == 0x1){      //Checks if the first bit in LEDvalue is 1
+        GpioDataRegs.GPASET.bit.GPIO22 = 1; //if the first bit is 1, turn on LED 1
     }else{
-        GpioDataRegs.GPACLEAR.bit.GPIO22 = 1;
+        GpioDataRegs.GPACLEAR.bit.GPIO22 = 1;//otherwise turn LED1 off
     }
-    if ((LEDvalue & 0x2) == 0x2){
-        GpioDataRegs.GPCSET.bit.GPIO94 = 1;
+    if ((LEDvalue & 0x2) == 0x2){//Check if the second bit in LEDvalue is 1
+        GpioDataRegs.GPCSET.bit.GPIO94 = 1;//if the second bit is 1, turn on LED2
     }else{
-        GpioDataRegs.GPCCLEAR.bit.GPIO94 = 1;
+        GpioDataRegs.GPCCLEAR.bit.GPIO94 = 1;//otherwise turn LED2 off
     }
-    if ((LEDvalue & 0x4) == 0x4){
-        GpioDataRegs.GPCSET.bit.GPIO95 = 1;
+    if ((LEDvalue & 0x4) == 0x4){   //Check if the third bit in LEDvalue is 1
+        GpioDataRegs.GPCSET.bit.GPIO95 = 1; //if the third bit is 1, turn on LED3
     }else{
-        GpioDataRegs.GPCCLEAR.bit.GPIO95 = 1;
+        GpioDataRegs.GPCCLEAR.bit.GPIO95 = 1;//otherwise, turn LED3 off
     }
-    if ((LEDvalue & 0x8) == 0x8){
-        GpioDataRegs.GPDSET.bit.GPIO97 = 1;
+    if ((LEDvalue & 0x8) == 0x8){  //Check if the fourth bit in LEDvalue is 1
+        GpioDataRegs.GPDSET.bit.GPIO97 = 1;  //if the fourth bit is 1, turn on LED4
     }else{
-        GpioDataRegs.GPDCLEAR.bit.GPIO97 = 1;
+        GpioDataRegs.GPDCLEAR.bit.GPIO97 = 1;//otherwise, turn LED4 off
     }
-    if ((LEDvalue &0x10) == 0x10){
-        GpioDataRegs.GPDSET.bit.GPIO111 = 1;
+    if ((LEDvalue &0x10) == 0x10){ //Check if the fifth bit in LEDvalue is 1
+        GpioDataRegs.GPDSET.bit.GPIO111 = 1; //if the fifth bit is 1, turn on LED5
     }
     else{
-        GpioDataRegs.GPDCLEAR.bit.GPIO111 = 1;
+        GpioDataRegs.GPDCLEAR.bit.GPIO111 = 1;//otherwise, turn LED5 off
     }
 }
 
-int16_t ReadSwitches(void){
-    int16_t state=0;
+int16_t ReadSwitches(void){     //starts a function that takes no inputs and returns a 16 bit integer
+    int16_t state=0;     //starts a local variable in the function
 
-    if(GpioDataRegs.GPEDAT.bit.GPIO157 == 0){
-        state |= 0x1;
+    if(GpioDataRegs.GPEDAT.bit.GPIO157 == 0){  //checks if button 1 is pressed
+        state |= 0x1;                     //if button 1 is pressed, set bit 0 of the local variable to 1
     }
-    if(GpioDataRegs.GPEDAT.bit.GPIO158==0){
-        state |= 0x2;
+    if(GpioDataRegs.GPEDAT.bit.GPIO158==0){   //checks if button 2 is pressed
+        state |= 0x2;                      //if button 2 is pressed, set bit 1 of the local variable to 1
     }
-    if(GpioDataRegs.GPEDAT.bit.GPIO159==0){
-        state |= 0x4;
+    if(GpioDataRegs.GPEDAT.bit.GPIO159==0){    //checks if button 3 is pressed
+        state |= 0x4;                         //if button 3 is pressed, set bit 2 of the local variable to 1
     }
-    if(GpioDataRegs.GPFDAT.bit.GPIO160==0){
-        state |= 0x8;
+    if(GpioDataRegs.GPFDAT.bit.GPIO160==0){    //checks if button 4 is pressed
+        state |= 0x8;                            //if button 4 is pressed, set bit 3 of the local variable to 1
     }
-    return state;
+    return state;                      //returns the local variable with the changes from the button presses
 }
 
 void main(void)
@@ -242,7 +242,7 @@ void main(void)
     // 200MHz CPU Freq,                       Period (in uSeconds)
     ConfigCpuTimer(&CpuTimer0, LAUNCHPAD_CPU_FREQUENCY, 10000);
     ConfigCpuTimer(&CpuTimer1, LAUNCHPAD_CPU_FREQUENCY, 20000);
-    ConfigCpuTimer(&CpuTimer2, LAUNCHPAD_CPU_FREQUENCY, 1000);
+    ConfigCpuTimer(&CpuTimer2, LAUNCHPAD_CPU_FREQUENCY, 1000);  //set the period to 1ms
 
     // Enable CpuTimer Interrupt bit TIE
     //CpuTimer0Regs.TCR.all = 0x4000;
@@ -278,10 +278,10 @@ void main(void)
     while(1)
     {
         if (UARTPrint == 1 ) {
-			serial_printf(&SerialA,"Num Timer2:%ld Num SerialRX: %ld\r\n",CpuTimer2.InterruptCount,numRXA);
-            UART_printfLine(1,"Timer2 Calls %ld",CpuTimer2.InterruptCount);
+			serial_printf(&SerialA,"Num Timer2:%ld Num SerialRX: %ld\r\n",CpuTimer2.InterruptCount,numRXA);    //print the 32 bit integer that is the number of timer 2 halts, along with the number of cputimer2 interrupts
+            UART_printfLine(1,"Timer2 Calls %ld",CpuTimer2.InterruptCount);                                   //prints the timer calls to the robots LCD screen
             UART_printfLine(2,"Num SerialRX %ld",numRXA);
-            UARTPrint = 0;
+            UARTPrint = 0;                                                                                   //sets UARTprint to 0 so we don't infinitely loop in this loop
         }
     }
 }
@@ -341,21 +341,21 @@ __interrupt void cpu_timer2_isr(void)
 	// Blink LaunchPad Blue LED
     GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1;
 
-    if ((CpuTimer2.InterruptCount % 100) == 0) {
-        if ((ReadSwitches() & 0x6) == 0x6){
+    if ((CpuTimer2.InterruptCount % 100) == 0) {//slowing down the function by a factor of 100 so the LEDs are visibly blinking
+        if ((ReadSwitches() & 0x6) == 0x6){   //Check if the second and third bit of the value returned from ReadSwitches are both 1 (if the second and third buttons are pressed). If they are, don't increment the counting variable
 
         }else{
-            counter++;
+            counter++;                      //If button 2 and 3 are not both pressed, continue incrementing the counter variable
         }
     }
-    SetLEDsOnOff(counter);
+    SetLEDsOnOff(counter);                 //Calling the above defined SetLEDs function using the counter variable, effectively showing the LEDs counting in binary
     CpuTimer2.InterruptCount++;
     //x4 = x3 + 2.0;
    // x3 = x4+1.3;
     //x1 = 9*x2;
     //x2 = 34*x3;
-	if ((CpuTimer2.InterruptCount % 100) == 0) {
-		UARTPrint = 1;
+	if ((CpuTimer2.InterruptCount % 100) == 0) {    //Slow down the print by a factor of 100 so individual lines are readable
+		UARTPrint = 1;   //Print to tera term
 	}
 }
 
