@@ -39,12 +39,35 @@ extern uint32_t numRXA;
 uint16_t UARTPrint = 0;
 uint16_t power = 0;
 float controleffort = -10.0;
-int16_t controls = 0.0;
+float controls = 0.0;
 float Left = 0.0;
 float Right = 0.0;
 int32_t raw = 0;
-
+float encoder = 0;
+float distL = 0.0;
+float distR = 0.0;
+float uLeft = 0.0;
+float uRight = 0.0;
+float v1 = 0.0;
+float p_current1 = 0.0;
+float p_old1 = 0.0;
+float v2 = 0.0;
+float p_current2 = 0.0;
+float p_old2 = 0.0;
+float prd20=0.0;
+float prd2=0.0;
 uint32_t QEP_maxvalue = 0xFFFFFFFFU;
+float Cpos = 1.866; // 1.48;
+float Vpos = 2.55;//2.561;
+float Cneg = -1.666;//-1.517;
+
+float Vneg = 2.55;//2.584;
+
+float calc_v(float p_current, float p_old){
+    float v = (p_current-p_old)/0.001;
+    return v;
+}
+
 void setEPWM1A(float controleffort){
     if (controleffort > 10){
         controleffort = 10.0;
@@ -52,7 +75,9 @@ void setEPWM1A(float controleffort){
     if (controleffort < -10){
         controleffort = -10.0;
     }
-    float controls = controleffort*EPwm1Regs.TBPRD/20+EPwm2Regs.TBPRD/2;
+    prd20=EPwm1Regs.TBPRD*1/20;
+    prd2=EPwm1Regs.TBPRD*1/2;
+    controls = controleffort*prd20+prd2;
     EPwm1Regs.CMPA.bit.CMPA = controls;
 }
 void setEPWM2A(float controleffort){
@@ -299,7 +324,7 @@ void main(void)
 
     // Configure CPU-Timer 0, 1, and 2 to interrupt every given period:
     // 200MHz CPU Freq,                       Period (in uSeconds)
-    ConfigCpuTimer(&CpuTimer0, LAUNCHPAD_CPU_FREQUENCY, 10000);
+    ConfigCpuTimer(&CpuTimer0, LAUNCHPAD_CPU_FREQUENCY, 1000);
     ConfigCpuTimer(&CpuTimer1, LAUNCHPAD_CPU_FREQUENCY, 20000);
     ConfigCpuTimer(&CpuTimer2, LAUNCHPAD_CPU_FREQUENCY, 1000);
 
@@ -373,9 +398,9 @@ void main(void)
     while(1)
     {
         if (UARTPrint == 1 ) {
-            serial_printf(&SerialA,"Left:%ld Num SerialRX: %ld\r\n",CpuTimer2.InterruptCount,numRXA);
-            UART_printfLine(1,"Left %.6f",Left);
-            UART_printfLine(2,"Right %.6f",Right);
+            //serial_printf(&SerialA,"Left:%ld Num SerialRX: %ld\r\n",CpuTimer2.InterruptCount,numRXA);
+            UART_printfLine(1,"v1 %.2f v2 %.2f",v1,v2);
+            UART_printfLine(2,"Encoder: %.2f", -encoder);
             UARTPrint = 0;
         }
     }
@@ -406,17 +431,67 @@ __interrupt void SWI_isr(void) {
 __interrupt void cpu_timer0_isr(void)
 {
     CpuTimer0.InterruptCount++;
+    Right = readEncLeft();
+    Left = readEncRight();
+    //encoder = readEncWheel();
+    distR = Right*3/29.66;
+    distL = Left*3/29.44;
+    p_current1 = distL;
+    p_current2 = distR;
 
-    numTimer0calls++;
+    if (encoder > 10){
+        encoder = 10.0;
+    }
+    if (encoder < -10){
+        encoder = -10.0;
+    }
+    //uLeft = encoder;
+    //uRight = encoder;
+    v1 = calc_v(p_current1,p_old1);
+    v2 = calc_v(p_current2,p_old2);
+    uLeft=0.0;
+    uRight=0.0;
+    if (v1>0.0){
+        uLeft = uLeft + Vpos*v1 + Cpos;
+    }
+    else {
+        uLeft = uLeft + Vneg*v1 + Cneg;
+    }
+    if (v2>0.0){
+        uRight = uRight + Vpos*v2 + Cpos;
+    }
+    else {
+
+        uRight = uRight + Vneg*v2 + Cneg;
+
+    }
+    if (uRight > 10){
+        uRight = 10.0;
+    }
+    if (uRight < -10){
+        uRight = -10.0;
+    }
+    if (uLeft > 10){
+        uLeft = 10.0;
+    }
+    if (uLeft < -10){
+        uLeft = -10.0;
+    }
+
+    setEPWM1A(uLeft);
+    setEPWM2A(uRight);
+    //numTimer0calls++;
+
 
     //    if ((numTimer0calls%50) == 0) {
     //        PieCtrlRegs.PIEIFR12.bit.INTx9 = 1;  // Manually cause the interrupt for the SWI
     //    }
 
-    if ((numTimer0calls%5) == 0) {
-        // Blink LaunchPad Red LED
-        GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
-    }
+    //if ((numTimer0calls%5) == 0) {
+    // Blink LaunchPad Red LED
+    // GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
+    p_old1 = distL;
+    p_old2 = distR;
 
 
     // Acknowledge this interrupt to receive more interrupts from group 1
@@ -435,8 +510,7 @@ __interrupt void cpu_timer2_isr(void)
 {
     // Blink LaunchPad Blue LED
     GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1;
-    Left = -readEncLeft();
-    Right = readEncRight();
+
     if (power == 0) {
         controleffort = controleffort + 0.005;
     }
@@ -454,7 +528,7 @@ __interrupt void cpu_timer2_isr(void)
     }
     CpuTimer2.InterruptCount++;
 
-    if ((CpuTimer2.InterruptCount % 10) == 0) {
+    if ((CpuTimer2.InterruptCount % 50) == 0) {
         UARTPrint = 1;
     }
 }
