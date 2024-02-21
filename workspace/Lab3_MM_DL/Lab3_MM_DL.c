@@ -63,32 +63,32 @@ float Cneg = -1.666;//-1.517;
 
 float Vneg = 2.55;//2.584;
 
-float calc_v(float p_current, float p_old){
+float calc_v(float p_current, float p_old){ //(pos1-pos2)/time =velocity function
     float v = (p_current-p_old)/0.001;
     return v;
 }
 
-void setEPWM1A(float controleffort){
-    if (controleffort > 10){
+void setEPWM1A(float controleffort){ //Wheel connected to EPWM1A
+    if (controleffort > 10){ //can't go above 10 otherwise floors to 10
         controleffort = 10.0;
     }
-    if (controleffort < -10){
+    if (controleffort < -10){//can't go below -10 otherwise floors to -10
         controleffort = -10.0;
     }
-    prd20=EPwm1Regs.TBPRD*1/20;
-    prd2=EPwm1Regs.TBPRD*1/2;
-    controls = controleffort*prd20+prd2;
-    EPwm1Regs.CMPA.bit.CMPA = controls;
+    prd20=EPwm1Regs.TBPRD*1/20; //breaks period up into 20 parts. 10 above 10 below 0
+    prd2=EPwm1Regs.TBPRD*1/2; //this is needed bc duty cycke of 50 stops driving the wheels so this like our reference zero
+    controls = controleffort*prd20+prd2; //this figures out using the controlseffort variable how much togive the motor based on the input.
+    EPwm1Regs.CMPA.bit.CMPA = controls; //sets the wheel speed
 }
-void setEPWM2A(float controleffort){
-    if (controleffort > 10){
+void setEPWM2A(float controleffort){//Wheel connected to EPWM1A
+    if (controleffort > 10){//can't go above 10 otherwise floors to 10
         controleffort = 10.0;
     }
-    if (controleffort < -10){
+    if (controleffort < -10){//can't go below -10 otherwise floors to -10
         controleffort = -10.0;
     }
-    float controls = controleffort*EPwm2Regs.TBPRD/20+EPwm2Regs.TBPRD/2;
-    EPwm2Regs.CMPA.bit.CMPA = controls;
+    float controls = controleffort*EPwm2Regs.TBPRD/20+EPwm2Regs.TBPRD/2;//this figures out using the controlseffort variable how much togive the motor based on the input.
+    EPwm2Regs.CMPA.bit.CMPA = controls; //sets the wheel speed
 
 }
 void init_eQEPs(void) {
@@ -155,23 +155,23 @@ void init_eQEPs(void) {
 float readEncLeft(void) {
     int32_t raw = 0;
     uint32_t QEP_maxvalue = 0xFFFFFFFFU; //4294967295U
-    raw = EQep1Regs.QPOSCNT;
+    raw = EQep1Regs.QPOSCNT; //gives the raw value
     if (raw >= QEP_maxvalue/2) raw -= QEP_maxvalue; // I don't think this is needed and never true
-    return (raw*(2*PI/40000));
+    return (raw*(2*PI/40000));// returns the left enc
 }
 float readEncRight(void) {
     int32_t raw = 0;
     uint32_t QEP_maxvalue = 0xFFFFFFFFU; //4294967295U -1 32bit signed int
-    raw = EQep2Regs.QPOSCNT;
+    raw = EQep2Regs.QPOSCNT; //gives the raw value
     if (raw >= QEP_maxvalue/2) raw -= QEP_maxvalue; // I don't think this is needed and never true
-    return (raw*(2*PI/40000));
+    return (raw*(2*PI/40000));// returns the right enc
 }
 float readEncWheel(void) {
     int32_t raw = 0;
     uint32_t QEP_maxvalue = 0xFFFFFFFFU; //4294967295U -1 32bit signed int
-    raw = EQep3Regs.QPOSCNT;
+    raw = EQep3Regs.QPOSCNT; //gives the raw value
     if (raw >= QEP_maxvalue/2) raw -= QEP_maxvalue; // I don't think this is needed and never true
-    return (raw*(2*PI/4000));
+    return (raw*(2*PI/4000)); //returns loc of the wheelenc
 }
 void main(void)
 {
@@ -347,6 +347,8 @@ void main(void)
     EPwm12Regs.AQCTLA.bit.CAU = 1;
     EPwm12Regs.AQCTLA.bit.ZRO = 2;
     EPwm12Regs.TBPHS.bit.TBPHS = 0;
+
+    //BLEOW IS THE SETUP FOR THE 1st SET OF WHEELS
     EPwm1Regs.TBCTL.bit.FREE_SOFT = 2;
     EPwm1Regs.TBCTL.bit.CTRMODE = 0;
     EPwm1Regs.TBCTL.bit.CLKDIV = 0;
@@ -356,6 +358,7 @@ void main(void)
     EPwm1Regs.AQCTLA.bit.CAU = 1;
     EPwm1Regs.AQCTLA.bit.ZRO = 2;
     EPwm1Regs.TBPHS.bit.TBPHS = 0;
+     //BLEOW IS THE SETUP FOR THE 2nd SET OF WHEELS
     EPwm2Regs.TBCTL.bit.FREE_SOFT = 2;
     EPwm2Regs.TBCTL.bit.CTRMODE = 0;
     EPwm2Regs.TBCTL.bit.CLKDIV = 0;
@@ -398,9 +401,9 @@ void main(void)
     while(1)
     {
         if (UARTPrint == 1 ) {
-            //serial_printf(&SerialA,"Left:%ld Num SerialRX: %ld\r\n",CpuTimer2.InterruptCount,numRXA);
-            UART_printfLine(1,"v1 %.2f v2 %.2f",v1,v2);
-            UART_printfLine(2,"Encoder: %.2f", -encoder);
+            //serial_printf(&SerialA,"Left:%ld Num SerialRX: %ld\r\n",CpuTimer2.InterruptCount,numRXA); 
+            UART_printfLine(1,"v1 %.2f v2 %.2f",v1,v2); //velocity of the left and right wheel
+            UART_printfLine(2,"Encoder: %.2f", -encoder); //encodr position 
             UARTPrint = 0;
         }
     }
@@ -431,55 +434,55 @@ __interrupt void SWI_isr(void) {
 __interrupt void cpu_timer0_isr(void)
 {
     CpuTimer0.InterruptCount++;
-    Right = readEncLeft();
-    Left = readEncRight();
+    Right = readEncLeft(); //left encoder is right wheels
+    Left = readEncRight();//right encoder is left wheels will I get confused with this? yes
     //encoder = readEncWheel();
-    distR = Right*3/29.66;
-    distL = Left*3/29.44;
-    p_current1 = distL;
-    p_current2 = distR;
+    distR = Right*3/29.66; //calculated from the test we did on the floor with moving 3 tiles.
+    distL = Left*3/29.44;//calculated from the test we did on the floor with moving 3 tiles.
+    p_current1 = distL; //we need to set the new values! why I have no idea thats a ask matt question
+    p_current2 = distR; //we need to set the new values! why I have no idea thats a ask matt question
 
-    if (encoder > 10){
-        encoder = 10.0;
+    if (encoder > 10){ //floor to 10 or -10 like the controleffort but this is needed for an extra layer of protection :)
+        encoder = 10.0; //all the way other way is 10
     }
-    if (encoder < -10){
-        encoder = -10.0;
+    if (encoder < -10){ //floor to 10 or -10 like the controleffort but this is needed for an extra layer of protection :)
+        encoder = -10.0; //all the way one way is -10
     }
     //uLeft = encoder;
     //uRight = encoder;
-    v1 = calc_v(p_current1,p_old1);
-    v2 = calc_v(p_current2,p_old2);
-    uLeft=0.0;
-    uRight=0.0;
-    if (v1>0.0){
-        uLeft = uLeft + Vpos*v1 + Cpos;
+    v1 = calc_v(p_current1,p_old1); //velocity of  right wheel
+    v2 = calc_v(p_current2,p_old2); //velocity of  right wheel
+    uLeft=0.0; //This is our floor for friction compensation
+    uRight=0.0; // this is our floor for friction compensation
+    if (v1>0.0){ //moving forwards
+        uLeft = uLeft + Vpos*v1 + Cpos; //y=mx+b part using our calculations from the crazy test they had us run that was so jank
     }
-    else {
-        uLeft = uLeft + Vneg*v1 + Cneg;
+    else { //moving backwards
+        uLeft = uLeft + Vneg*v1 + Cneg; //y=mx+b part using our calculations from the crazy test they had us run that was so jank
     }
-    if (v2>0.0){
-        uRight = uRight + Vpos*v2 + Cpos;
+    if (v2>0.0){ //moving forwards
+        uRight = uRight + Vpos*v2 + Cpos; //y=mx+b part using our calculations from the crazy test they had us run that was so jank
     }
-    else {
+    else { //moving backwards
 
-        uRight = uRight + Vneg*v2 + Cneg;
+        uRight = uRight + Vneg*v2 + Cneg; //y=mx+b part using our calculations from the crazy test they had us run that was so jank
 
     }
-    if (uRight > 10){
-        uRight = 10.0;
+    if (uRight > 10){ //once again we are making sure our values are within the range we want before we break everything and I complain to abbas about the code is broken
+        uRight = 10.0; 
     }
-    if (uRight < -10){
+    if (uRight < -10){//once again we are making sure our values are within the range we want before we break everything and I complain to abbas about the code is broken
         uRight = -10.0;
     }
-    if (uLeft > 10){
+    if (uLeft > 10){//once again we are making sure our values are within the range we want before we break everything and I complain to abbas about the code is broken
         uLeft = 10.0;
     }
-    if (uLeft < -10){
+    if (uLeft < -10){//once again we are making sure our values are within the range we want before we break everything and I complain to abbas about the code is broken
         uLeft = -10.0;
     }
 
-    setEPWM1A(uLeft);
-    setEPWM2A(uRight);
+    setEPWM1A(uLeft); //set our friction compnensation adjusted values
+    setEPWM2A(uRight);//set our friction compnensation adjusted values
     //numTimer0calls++;
 
 
@@ -490,8 +493,8 @@ __interrupt void cpu_timer0_isr(void)
     //if ((numTimer0calls%5) == 0) {
     // Blink LaunchPad Red LED
     // GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
-    p_old1 = distL;
-    p_old2 = distR;
+    p_old1 = distL; //set the old position for use in velocity calcs
+    p_old2 = distR;//set the old position for use in velocity calcs
 
 
     // Acknowledge this interrupt to receive more interrupts from group 1
@@ -509,21 +512,21 @@ __interrupt void cpu_timer1_isr(void)
 __interrupt void cpu_timer2_isr(void)
 {
     // Blink LaunchPad Blue LED
-    GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1;
+    //GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1;
 
     if (power == 0) {
-        controleffort = controleffort + 0.005;
+        controleffort = controleffort + 0.005; //when counting up it makes the wheels go faster and faster and faster.
     }
     else {
-        controleffort = controleffort - 0.005;
+        controleffort = controleffort - 0.005; //when counting down it makes the wheels go faster and faster and faster but in the other direction (REVERSE!)
     }
     //setEPWM1A(controleffort);
     //setEPWM2A(-controleffort);
-    if (controleffort > 10){
+    if (controleffort > 10){ //flips to counting down
         power = 1;
     }
 
-    if (controleffort < -10){
+    if (controleffort < -10){//flips to counting up!
         power = 0;
     }
     CpuTimer2.InterruptCount++;
