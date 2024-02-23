@@ -37,12 +37,19 @@ __interrupt void cpu_timer1_isr(void);
 __interrupt void cpu_timer2_isr(void);
 __interrupt void SWI_isr(void);
 __interrupt void ADCD_ISR(void);
+__interrupt void ADCC_ISR(void);
+
 // Count variables
 uint32_t numTimer0calls = 0;
 uint32_t numSWIcalls = 0;
 extern uint32_t numRXA;
 uint16_t UARTPrint = 0;
 uint32_t ADCDISRInterruptCount = 0;
+uint32_t ADCCISRInterruptCount = 0;
+float adcc0result = 0.0;
+float adcc1result = 0.0;
+float adcc2result = 0.0;
+float adcc3result = 0.0;
 float adcd0result = 0.0;
 float adcd1result = 0.0;
 float adcd0res = 0.0;
@@ -53,29 +60,41 @@ float xk_2 = 0;
 float xk_3 = 0;
 float xk_4 = 0;
 float yk = 0.0;
+float gyro0 = 0.0;
+float gyro1 = 0.0;
+float gyro2 = 0.0;
+float gyro3 = 0.0;
+float sum4Z = 0.0;
+float sumZ = 0.0;
+float sum4X = 0.0;
+float sumX = 0.0;
+float zero4Z = 0.0;
+float zeroZ = 0.0;
+float zero4X = 0.0;
+float zeroX = 0.0;
 //float b[5] = {0.2,0.2,0.2,0.2,0.2}; // 0.2 is 1/5th therefore a 5 point average
 float b[22]={   -2.3890045153263611e-03,
-    -3.3150057635348224e-03,
-    -4.6136191242627002e-03,
-    -4.1659855521681268e-03,
-    1.4477422497795286e-03,
-    1.5489414225159667e-02,
-    3.9247886844071371e-02,
-    7.0723964095458614e-02,
-    1.0453473887246176e-01,
-    1.3325672639406205e-01,
-    1.4978314227429904e-01,
-    1.4978314227429904e-01,
-    1.3325672639406205e-01,
-    1.0453473887246176e-01,
-    7.0723964095458614e-02,
-    3.9247886844071371e-02,
-    1.5489414225159667e-02,
-    1.4477422497795286e-03,
-    -4.1659855521681268e-03,
-    -4.6136191242627002e-03,
-    -3.3150057635348224e-03,
-    -2.3890045153263611e-03};
+                -3.3150057635348224e-03,
+                -4.6136191242627002e-03,
+                -4.1659855521681268e-03,
+                1.4477422497795286e-03,
+                1.5489414225159667e-02,
+                3.9247886844071371e-02,
+                7.0723964095458614e-02,
+                1.0453473887246176e-01,
+                1.3325672639406205e-01,
+                1.4978314227429904e-01,
+                1.4978314227429904e-01,
+                1.3325672639406205e-01,
+                1.0453473887246176e-01,
+                7.0723964095458614e-02,
+                3.9247886844071371e-02,
+                1.5489414225159667e-02,
+                1.4477422497795286e-03,
+                -4.1659855521681268e-03,
+                -4.6136191242627002e-03,
+                -3.3150057635348224e-03,
+                -2.3890045153263611e-03};
 float z[22]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 void setDACA(float dacouta0) {
     if (dacouta0 > 3.0){
@@ -228,6 +247,7 @@ void main(void)
     PieVectTable.TIMER1_INT = &cpu_timer1_isr;
     PieVectTable.TIMER2_INT = &cpu_timer2_isr;
     PieVectTable.ADCD1_INT = &ADCD_ISR;
+    PieVectTable.ADCC1_INT = &ADCC_ISR;
     PieVectTable.SCIA_RX_INT = &RXAINT_recv_ready;
     PieVectTable.SCIB_RX_INT = &RXBINT_recv_ready;
     PieVectTable.SCIC_RX_INT = &RXCINT_recv_ready;
@@ -319,21 +339,21 @@ void main(void)
     //AdcbRegs.ADCINTSEL1N2.bit.INT1E = 1; //enable INT1 flag
     //AdcbRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //make sure INT1 flag is cleared
     //ADCC
-    //AdccRegs.ADCSOC0CTL.bit.CHSEL = ???; //SOC0 will convert Channel you choose Does not have to be B0
-    //AdccRegs.ADCSOC0CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
-    //AdccRegs.ADCSOC0CTL.bit.TRIGSEL = ???; // EPWM4 ADCSOCA or another trigger you choose will trigger SOC0
-    //AdccRegs.ADCSOC1CTL.bit.CHSEL = ???; //SOC1 will convert Channel you choose Does not have to be B1
-    //AdccRegs.ADCSOC1CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
-    //AdccRegs.ADCSOC1CTL.bit.TRIGSEL = ???; // EPWM4 ADCSOCA or another trigger you choose will trigger SOC1
-    //AdccRegs.ADCSOC2CTL.bit.CHSEL = ???; //SOC2 will convert Channel you choose Does not have to be B2
-    //AdccRegs.ADCSOC2CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
-    //AdccRegs.ADCSOC2CTL.bit.TRIGSEL = ???; // EPWM4 ADCSOCA or another trigger you choose will trigger SOC2
-    //AdccRegs.ADCSOC3CTL.bit.CHSEL = ???; //SOC3 will convert Channel you choose Does not have to be B3
-    //AdccRegs.ADCSOC3CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
-    //AdccRegs.ADCSOC3CTL.bit.TRIGSEL = ???; // EPWM4 ADCSOCA or another trigger you choose will trigger SOC3
-    //AdccRegs.ADCINTSEL1N2.bit.INT1SEL = ???; //set to last SOC that is converted and it will set INT1 flag ADCB1
-    //AdccRegs.ADCINTSEL1N2.bit.INT1E = 1; //enable INT1 flag
-    //AdccRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //make sure INT1 flag is cleared
+    AdccRegs.ADCSOC0CTL.bit.CHSEL = 0x2; //SOC0 will convert Channel you choose Does not have to be B0
+    AdccRegs.ADCSOC0CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
+    AdccRegs.ADCSOC0CTL.bit.TRIGSEL = 0xB; // EPWM4 ADCSOCA or another trigger you choose will trigger SOC0
+    AdccRegs.ADCSOC1CTL.bit.CHSEL = 0x3; //SOC1 will convert Channel you choose Does not have to be B1
+    AdccRegs.ADCSOC1CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
+    AdccRegs.ADCSOC1CTL.bit.TRIGSEL = 0xB; // EPWM4 ADCSOCA or another trigger you choose will trigger SOC1
+    AdccRegs.ADCSOC2CTL.bit.CHSEL = 0x4; //SOC2 will convert Channel you choose Does not have to be B2
+    AdccRegs.ADCSOC2CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
+    AdccRegs.ADCSOC2CTL.bit.TRIGSEL = 0xB; // EPWM4 ADCSOCA or another trigger you choose will trigger SOC2
+    AdccRegs.ADCSOC3CTL.bit.CHSEL = 0x5; //SOC3 will convert Channel you choose Does not have to be B3
+    AdccRegs.ADCSOC3CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
+    AdccRegs.ADCSOC3CTL.bit.TRIGSEL = 0xB; // EPWM4 ADCSOCA or another trigger you choose will trigger SOC3
+    AdccRegs.ADCINTSEL1N2.bit.INT1SEL = 0x3; //set to last SOC that is converted and it will set INT1 flag ADCB1
+    AdccRegs.ADCINTSEL1N2.bit.INT1E = 1; //enable INT1 flag
+    AdccRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //make sure INT1 flag is cleared
     //ADCD
     AdcdRegs.ADCSOC0CTL.bit.CHSEL = 0; // set SOC0 to convert pin D0
     AdcdRegs.ADCSOC0CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
@@ -364,6 +384,7 @@ void main(void)
     // which is connected to CPU-Timer 1, and CPU int 14, which is connected
     // to CPU-Timer 2:  int 12 is for the SWI.
     IER |= M_INT1;
+    IER |= M_INT3;
     IER |= M_INT8;  // SCIC SCID
     IER |= M_INT9;  // SCIA
     IER |= M_INT12;
@@ -374,6 +395,8 @@ void main(void)
     PieCtrlRegs.PIEIER1.bit.INTx7 = 1;
     // Enable 6th interrupt source of interrupt 1
     PieCtrlRegs.PIEIER1.bit.INTx6 = 1;
+    // Enable 3rd interrupt source of interrupt 1
+    PieCtrlRegs.PIEIER1.bit.INTx3 = 1;
     // Enable SWI in the PIE: Group 12 interrupt 9
     PieCtrlRegs.PIEIER12.bit.INTx9 = 1;
 
@@ -386,7 +409,7 @@ void main(void)
     while(1)
     {
         if (UARTPrint == 1 ) {
-            serial_printf(&SerialA,"DACA %.4f",adcd0res);
+            serial_printf(&SerialA,"gyro0:%.2f,gyro1:%.2f,gyro2:%.2f,gyro3:%.2f\n\r",gyro0,gyro1,gyro2,gyro3);
             UART_printfLine(1,"Timer2 Calls %ld",CpuTimer2.InterruptCount);
             UART_printfLine(2,"Num SerialRX %ld",numRXA);
             UARTPrint = 0;
@@ -452,7 +475,7 @@ __interrupt void cpu_timer2_isr(void)
     CpuTimer2.InterruptCount++;
 
     if ((CpuTimer2.InterruptCount % 10) == 0) {
-        UARTPrint = 1;
+        //UARTPrint = 1;
     }
 }
 __interrupt void ADCD_ISR(void)
@@ -483,10 +506,50 @@ __interrupt void ADCD_ISR(void)
     //xk_2 = xk_1;
     //xk_1 = xk;
     setDACA(yk);
-    if ((ADCDISRInterruptCount % 100)== 0){
+    //if ((ADCDISRInterruptCount % 100)== 0){
+    //UARTPrint = 1;
+    //}
+    AdcdRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
+    PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
+}
+__interrupt void ADCC_ISR(void)
+{
+    ADCCISRInterruptCount++;
+    adcc0result = AdccResultRegs.ADCRESULT0;
+    adcc1result = AdccResultRegs.ADCRESULT1;
+    adcc2result = AdccResultRegs.ADCRESULT2;
+    adcc3result = AdccResultRegs.ADCRESULT3;
+    if (ADCCISRInterruptCount < 1000){
+        gyro0 = 0;
+        gyro1 = 0;
+        gyro2 = 0;
+        gyro3 = 0;
+    }
+    else if (ADCCISRInterruptCount < 3000){
+        gyro0 = adcc0result*3/4095.0;
+        gyro1 = adcc1result*3/4095.0;
+        gyro2 = adcc2result*3/4095.0;
+        gyro3 = adcc3result*3/4095.0;
+        sum4Z += gyro0;
+        sumZ += gyro1;
+        sum4X += gyro2;
+        sumX +=gyro3;
+    }
+    else{
+        zero4Z = sum4Z/2000;
+        zeroZ = sumZ/2000;
+        zero4X = sum4X/2000;
+        zeroX = sumX/2000;
+        gyro0 = 100*(adcc0result*3/4095.0 - zero4Z);
+        gyro1 = 100*(adcc1result*3/4095.0 - zeroZ);
+        gyro2 = 100*(adcc2result*3/4095.0 - zero4X);
+        gyro3 = 100*(adcc3result*3/4095.0 - zeroX);
+    }
+
+    if ((ADCCISRInterruptCount % 100) == 0){
         UARTPrint = 1;
     }
-    AdcdRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
+    AdccRegs.ADCINTFLGCLR.bit.ADCINT1 = 1;
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 }
 
