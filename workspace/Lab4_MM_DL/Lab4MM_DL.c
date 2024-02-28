@@ -38,6 +38,7 @@ __interrupt void cpu_timer2_isr(void);
 __interrupt void SWI_isr(void);
 __interrupt void ADCD_ISR(void);
 __interrupt void ADCC_ISR(void);
+__interrupt void ADCB_ISR(void);
 
 // Count variables
 uint32_t numTimer0calls = 0;
@@ -46,6 +47,8 @@ extern uint32_t numRXA;
 uint16_t UARTPrint = 0;
 uint32_t ADCDISRInterruptCount = 0;
 uint32_t ADCCISRInterruptCount = 0;
+uint32_t ADCBISRInterruptCount = 0;
+//Intializing all the variables we created :D
 float adcc0result = 0.0;
 float adcc1result = 0.0;
 float adcc2result = 0.0;
@@ -72,7 +75,10 @@ float zero4Z = 0.0;
 float zeroZ = 0.0;
 float zero4X = 0.0;
 float zeroX = 0.0;
+float adcb0result = 0.0;
+float adcb0res = 0.0;
 //float b[5] = {0.2,0.2,0.2,0.2,0.2}; // 0.2 is 1/5th therefore a 5 point average
+//For the 21st order filter
 float b[22]={   -2.3890045153263611e-03,
                 -3.3150057635348224e-03,
                 -4.6136191242627002e-03,
@@ -97,6 +103,7 @@ float b[22]={   -2.3890045153263611e-03,
                 -2.3890045153263611e-03};
 float z[22]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 void setDACA(float dacouta0) {
+    //keeps our DACA in [3,0] range
     if (dacouta0 > 3.0){
         dacouta0 = 3.0;
     }
@@ -106,13 +113,14 @@ void setDACA(float dacouta0) {
     DacaRegs.DACVALS.bit.DACVALS = dacouta0*4095/3; // perform scaling of 0-3 to 0-4095
 }
 void setDACB(float dacouta1) {
+    //keeps our DACB in [3,0] range
     if (dacouta1 > 3.0){
         dacouta1 = 3.0;
     }
     if (dacouta1 < 0.0) {
         dacouta1 = 0.0;
     }
-    DacbRegs.DACVALS.bit.DACVALS = dacouta1*4095/3;
+    DacbRegs.DACVALS.bit.DACVALS = dacouta1*4095/3;// perform scaling of 0-3 to 0-4095
 }
 void main(void)
 {
@@ -248,6 +256,7 @@ void main(void)
     PieVectTable.TIMER2_INT = &cpu_timer2_isr;
     PieVectTable.ADCD1_INT = &ADCD_ISR;
     PieVectTable.ADCC1_INT = &ADCC_ISR;
+    PieVectTable.ADCB1_INT = &ADCB_ISR;
     PieVectTable.SCIA_RX_INT = &RXAINT_recv_ready;
     PieVectTable.SCIB_RX_INT = &RXBINT_recv_ready;
     PieVectTable.SCIC_RX_INT = &RXCINT_recv_ready;
@@ -295,6 +304,20 @@ void main(void)
     EPwm4Regs.TBCTL.bit.CTRMODE = 0; //unfreeze, and enter up count mode
     EDIS;
     EALLOW;
+    EPwm7Regs.ETSEL.bit.SOCAEN = 0; // Disable SOC on A group
+    EPwm7Regs.TBCTL.bit.CTRMODE = 3; // freeze counter
+    EPwm7Regs.ETSEL.bit.SOCASEL = 2; // Select Event when counter equal to PRD
+    EPwm7Regs.ETPS.bit.SOCAPRD = 1; // Generate pulse on 1st event (“pulse” is the same as “trigger”)
+    EPwm7Regs.TBCTR = 0x0; // Clear counter
+    EPwm7Regs.TBPHS.bit.TBPHS = 0x0000; // Phase is 0
+    EPwm7Regs.TBCTL.bit.PHSEN = 0; // Disable phase loading
+    EPwm7Regs.TBCTL.bit.CLKDIV = 0; // divide by 1 50Mhz Clock
+    EPwm7Regs.TBPRD = 5000; // Set Period to 0.1ms sample. Input clock is 50MHz.
+    // Notice here that we are not setting CMPA or CMPB because we are not using the PWM signal
+    EPwm7Regs.ETSEL.bit.SOCAEN = 1; //enable SOCA
+    EPwm7Regs.TBCTL.bit.CTRMODE = 0; //unfreeze, and enter up count mode
+    EDIS;
+    EALLOW;
     //write configurations for all ADCs ADCA, ADCB, ADCC, ADCD
     AdcaRegs.ADCCTL2.bit.PRESCALE = 6; //set ADCCLK divider to /4
     AdcbRegs.ADCCTL2.bit.PRESCALE = 6; //set ADCCLK divider to /4
@@ -329,15 +352,15 @@ void main(void)
     //AdcaRegs.ADCINTSEL1N2.bit.INT1E = 1; //enable INT1 flag
     //AdcaRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //make sure INT1 flag is cleared
     //ADCB Microphone is connected to ADCINB4
-    //AdcbRegs.ADCSOC0CTL.bit.CHSEL = ???; //SOC0 will convert Channel you choose Does not have to be B0
-    //AdcbRegs.ADCSOC0CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
-    //AdcbRegs.ADCSOC0CTL.bit.TRIGSEL = ???;// EPWM7 ADCSOCA or another trigger you choose will trigger SOC0
+    AdcbRegs.ADCSOC0CTL.bit.CHSEL = 0x4; //SOC0 will convert Channel you choose Does not have to be B0
+    AdcbRegs.ADCSOC0CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
+    AdcbRegs.ADCSOC0CTL.bit.TRIGSEL = 17;// EPWM7 ADCSOCA or another trigger you choose will trigger SOC0
     //AdcbRegs.ADCSOC1CTL.bit.CHSEL = ???; //SOC1 will convert Channel you choose Does not have to be B1
     //AdcbRegs.ADCSOC1CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
     //AdcbRegs.ADCSOC1CTL.bit.TRIGSEL = ???;// EPWM7 ADCSOCA or another trigger you choose will trigger SOC1
-    //AdcbRegs.ADCINTSEL1N2.bit.INT1SEL = ???; //set to last SOC that is converted and it will set INT1 flag ADCB1
-    //AdcbRegs.ADCINTSEL1N2.bit.INT1E = 1; //enable INT1 flag
-    //AdcbRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //make sure INT1 flag is cleared
+    AdcbRegs.ADCINTSEL1N2.bit.INT1SEL = 0; //set to last SOC that is converted and it will set INT1 flag ADCB1
+    AdcbRegs.ADCINTSEL1N2.bit.INT1E = 1; //enable INT1 flag
+    AdcbRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //make sure INT1 flag is cleared
     //ADCC
     AdccRegs.ADCSOC0CTL.bit.CHSEL = 0x2; //SOC0 will convert Channel you choose Does not have to be B0
     AdccRegs.ADCSOC0CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
@@ -383,7 +406,8 @@ void main(void)
     // Enable CPU int1 which is connected to CPU-Timer 0, CPU int13
     // which is connected to CPU-Timer 1, and CPU int 14, which is connected
     // to CPU-Timer 2:  int 12 is for the SWI.
-    IER |= M_INT1;
+    IER |= M_INT1; //FOR ADCA
+    IER |= M_INT2; //for ADCB
     IER |= M_INT3;
     IER |= M_INT8;  // SCIC SCID
     IER |= M_INT9;  // SCIA
@@ -395,6 +419,8 @@ void main(void)
     PieCtrlRegs.PIEIER1.bit.INTx7 = 1;
     // Enable 6th interrupt source of interrupt 1
     PieCtrlRegs.PIEIER1.bit.INTx6 = 1;
+    // Enable 2nd interrupt source of interrupt 1
+    PieCtrlRegs.PIEIER1.bit.INTx2 = 1;
     // Enable 3rd interrupt source of interrupt 1
     PieCtrlRegs.PIEIER1.bit.INTx3 = 1;
     // Enable SWI in the PIE: Group 12 interrupt 9
@@ -409,9 +435,10 @@ void main(void)
     while(1)
     {
         if (UARTPrint == 1 ) {
-            serial_printf(&SerialA,"gyro0:%.2f,gyro1:%.2f,gyro2:%.2f,gyro3:%.2f\n\r",gyro0,gyro1,gyro2,gyro3);
-            UART_printfLine(1,"Timer2 Calls %ld",CpuTimer2.InterruptCount);
-            UART_printfLine(2,"Num SerialRX %ld",numRXA);
+            serial_printf(&SerialA,"gyro0:%.2f,gyro1:%.2f,gyro2:%.2f,gyro3:%.2f\r\n",gyro0,gyro1,gyro2,gyro3);
+            //These print to Tera term or the robot bc our tera term broke halfway through this lab and the TAs couldn't figure out the problem
+            UART_printfLine(1,"gyro0:%.2f,gyro1:%.2f",gyro0,gyro1);
+            UART_printfLine(2,"gyro2:%.2f,gyro3:%.2f",gyro2,gyro3);
             UARTPrint = 0;
         }
     }
@@ -480,24 +507,27 @@ __interrupt void cpu_timer2_isr(void)
 }
 __interrupt void ADCD_ISR(void)
 {
+    //THIS IS FOR Exercise 1 and 2
     ADCDISRInterruptCount++;
+    //Take the values from the resulting adcregisters
     adcd0result = AdcdResultRegs.ADCRESULT0;
     adcd1result = AdcdResultRegs.ADCRESULT1;
     // Here covert ADCIND0, ADCIND1 to volts
     adcd0res = adcd0result*3/4096.0;
+    //prep this value for filtering
     xk = adcd0res;
 
-    int y = 22;
+    int y = 22; //change depending on the order of the filter so 21st order would be y=22 or 10th order would be y=11
     int x = 0;
     yk=0;
 
-    z[x]=xk;
+    z[x]=xk;//set the first value to the most recent one
 
     for(x = 0; x < y; x++){
-        yk+=b[x]*z[x];
+        yk+=b[x]*z[x];//get the output value we want to save for each value in the array
     }
     for (int i=0;i<y;i++){
-        z[y-i]=z[y-i-1];
+        z[y-i]=z[y-i-1]; //re assign all the values to update for the newest value now
     }
 
     //Save past states before exiting from the function so that next sample they are the older state
@@ -505,41 +535,49 @@ __interrupt void ADCD_ISR(void)
     //xk_3 = xk_2;
     //xk_2 = xk_1;
     //xk_1 = xk;
-    setDACA(yk);
+    //setDACA(yk);
     //if ((ADCDISRInterruptCount % 100)== 0){
-    //UARTPrint = 1;
+    //    UARTPrint = 1;
     //}
     AdcdRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 }
 __interrupt void ADCC_ISR(void)
 {
+    //This code is for Exercise 3
     ADCCISRInterruptCount++;
-    adcc0result = AdccResultRegs.ADCRESULT0;
-    adcc1result = AdccResultRegs.ADCRESULT1;
-    adcc2result = AdccResultRegs.ADCRESULT2;
-    adcc3result = AdccResultRegs.ADCRESULT3;
+    adcc0result = AdccResultRegs.ADCRESULT0; //Get value from gyro 0
+    adcc1result = AdccResultRegs.ADCRESULT1;//Get value from gyro 1
+    adcc2result = AdccResultRegs.ADCRESULT2;//Get value from gyro 2
+    adcc3result = AdccResultRegs.ADCRESULT3;//Get value from gyro 3
+
     if (ADCCISRInterruptCount < 1000){
+        //this function makes it so for the first second all the gyros report zero so that we don't
+        //have crazy values from initial noise that will mess up the normalization
         gyro0 = 0;
         gyro1 = 0;
         gyro2 = 0;
         gyro3 = 0;
     }
     else if (ADCCISRInterruptCount < 3000){
+        //Between 1s and 3 seconds we are taking the gyro values and converting them to voltages
         gyro0 = adcc0result*3/4095.0;
         gyro1 = adcc1result*3/4095.0;
         gyro2 = adcc2result*3/4095.0;
         gyro3 = adcc3result*3/4095.0;
+        //Once we have these voltages we add them to a sum which keeps track of all the gyros sum between 1 and 3 seconds
         sum4Z += gyro0;
         sumZ += gyro1;
         sum4X += gyro2;
         sumX +=gyro3;
     }
     else{
+        //After 3 seconds has elapsed we find the average value of each gyro
         zero4Z = sum4Z/2000;
         zeroZ = sumZ/2000;
         zero4X = sum4X/2000;
         zeroX = sumX/2000;
+        //After 3 seconds we now set the value of the gyro to what it prints minus the offset we previously calculated
         gyro0 = 100*(adcc0result*3/4095.0 - zero4Z);
         gyro1 = 100*(adcc1result*3/4095.0 - zeroZ);
         gyro2 = 100*(adcc2result*3/4095.0 - zero4X);
@@ -547,9 +585,22 @@ __interrupt void ADCC_ISR(void)
     }
 
     if ((ADCCISRInterruptCount % 100) == 0){
+        //print every 100ms
         UARTPrint = 1;
     }
     AdccRegs.ADCINTFLGCLR.bit.ADCINT1 = 1;
+    PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
+}
+__interrupt void ADCB_ISR(void)
+{
+    //This is for exercise 4 ADCB_ISR interrupt
+    adcb0result = AdcbResultRegs.ADCRESULT0; //retrieves the value from the register
+    ADCBISRInterruptCount++; //increases the interrupt count but tbh we dont need this?
+    adcb0res = adcb0result*3.0/4096; //sets it to a voltage
+    setDACA(adcb0res); //sets the voltage to A DACA output that we can read with oscilloscope
+
+    AdcbRegs.ADCINTFLGCLR.bit.ADCINT1 = 1;
+
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 }
 
