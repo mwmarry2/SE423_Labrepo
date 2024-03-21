@@ -452,7 +452,7 @@ __interrupt void cpu_timer2_isr(void)
 {
     CpuTimer2.InterruptCount++;
     if (CpuTimer2.InterruptCount%2==0){
-        UARTPrint = 1;
+        //UARTPrint = 1;
     }
 }
 
