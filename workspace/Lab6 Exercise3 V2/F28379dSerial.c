@@ -60,6 +60,7 @@ datapts ladar_data[228]; //distance data from LADAR
 xy ladar_pts[228]; //xy data
 float LADARrightfront = 0;
 float LADARfront = 0;
+float LADARrightback = 0;
 uint16_t LADARpingpong = 0;
 float LADARtemp_x = 0;
 float LADARtemp_y = 0;

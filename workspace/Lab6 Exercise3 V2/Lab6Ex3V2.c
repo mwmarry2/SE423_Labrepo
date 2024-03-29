@@ -81,16 +81,16 @@ float p_current2 = 0.0;
 float p_old2 = 0.0;
 float prd20=0.0;
 float prd2=0.0;
-float vref = 0.0;
 
-float ref_right_wall = 0;
-float left_turn_Start_threshold= 0.0;
-float left_turn_Stop_threshold =0.0;
-float Kp_right_wall = 0.0;
-float Kp_front_wall = 0.0;
-float front_turn_velocity = 0.0;
-float forward_velocity = 0.0;
-float turn_command_saturation =0.0;
+float vref = 0.0;
+float ref_right_wall = 1.2;
+float left_turn_Start_threshold= 1.2;
+float left_turn_Stop_threshold = 6.0;
+float Kp_right_wall = 0.1;
+float Kp_front_wall = 0.1;
+float front_turn_velocity = 0.4;
+float forward_velocity = 1.0;
+float turn_command_saturation = 1.0;
 float all = 0.0;
 uint32_t QEP_maxvalue = 0xFFFFFFFFU;
 float Cpos = 1.866*0.6; // 1.48;
@@ -112,7 +112,9 @@ float IKLeft_old = 0.0;
 float turn = 0.0;
 float Kp_turn = 3.0;
 float e_steer = 0.0;
-
+float frontwall_error = 0.0;
+float rightwall_error = 0.0;
+uint16_t right_wall_follow_state = 1;
 // Count variables
 uint16_t songcount=0;
 int16_t spivalue1 = 0;
@@ -150,6 +152,7 @@ extern float printLV2;
 
 extern float LADARrightfront;
 extern float LADARfront;
+extern float LADARrightback;
 
 extern LVSendFloats_t DataToLabView;
 extern char LVsenddata[LVNUM_TOFROM_FLOATS*4+2];
@@ -781,8 +784,8 @@ void main(void)
     {
         if (UARTPrint == 1 ) {
             serial_printf(&SerialA,"aX:%.2f,aY:%.2f,aZ:%.2f gX: %.2f gY: %.2f gZ: %.2f \r\n",aXadj,aYadj,aZadj, gXadj, gYadj, gZadj);
-            UART_printfLine(1,"1%.1f 2%.1f 3%.1f 4%.1f",vref,turn,ref_right_wall,left_turn_Start_threshold);
-            UART_printfLine(2,"5%.1f 6%.1f 7%.1f 8%.1f 9%.1f",Kp_right_wall,Kp_front_wall,front_turn_velocity,forward_velocity,turn_command_saturation);
+            UART_printfLine(1,"FR %.2f RB %.2f",LADARrightfront,LADARrightback);
+            UART_printfLine(2,"Mode:%d, turn:%.2f",right_wall_follow_state,turn);
             UARTPrint = 0;
         }
     }
@@ -1037,7 +1040,47 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
     PieCtrlRegs.PIEACK.all = 0xFFFF;    // Enable PIE interrupts
     __asm("  NOP");
     EINT;
-
+    switch(right_wall_follow_state){
+    case 1:
+        //Left Turn
+        turn = Kp_front_wall*(LADARfront - 14.5);
+        vref = front_turn_velocity;
+        if (LADARfront > left_turn_Stop_threshold){
+            right_wall_follow_state = 2;
+        }
+        if (LADARrightfront > (2*ref_right_wall) && (LADARrightback < 1.25*ref_right_wall)){
+            right_wall_follow_state = 3;
+        }
+        break;
+    case 2:
+        //Right Wall follow
+        turn = Kp_right_wall*(LADARrightfront - ref_right_wall);
+        vref = forward_velocity;
+        if (LADARfront < left_turn_Start_threshold){
+            right_wall_follow_state = 1;
+        }
+        if (LADARrightfront > (2*ref_right_wall) && (LADARrightback < 1.25*ref_right_wall)){
+            right_wall_follow_state = 3;
+        }
+        break;
+    case 3:
+        //Jutt out
+        turn = turn_command_saturation;
+        vref = front_turn_velocity;
+        if (LADARrightfront < ref_right_wall){
+            right_wall_follow_state = 2;
+        }
+        if (LADARfront < left_turn_Start_threshold){
+            right_wall_follow_state = 1;
+        }
+        break;
+    }
+    if (turn > turn_command_saturation){
+        turn = turn_command_saturation;
+    }
+    if (turn < -turn_command_saturation){
+        turn = -turn_command_saturation;
+    }
     uint16_t i = 0;//for loop
     if (timecount < 1000){
         //this function makes it so for the first second all the gyros report zero so that we don't
@@ -1107,7 +1150,6 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
     timecount++;
     GpioDataRegs.GPBCLEAR.bit.GPIO61 = 1;
 
-
     //##############################################################################################################
     //
     // Restore registers saved:
@@ -1170,6 +1212,13 @@ __interrupt void SWI2_MiddlePriority(void)     // RAM_CORRECTABLE_ERROR
         for (LADARi = 111; LADARi <= 115 ; LADARi++) {
             if (ladar_data[LADARi].distance_pong < LADARfront) {
                 LADARfront = ladar_data[LADARi].distance_pong;
+            }
+        }
+        // LADARrightback is the min dist 22, 23, 24, 25, 26
+        LADARrightback = 19;
+        for (LADARi = 22; LADARi <= 26 ; LADARi++) {
+            if (ladar_data[LADARi].distance_pong < LADARrightback) {
+                LADARrightback = ladar_data[LADARi].distance_pong;
             }
         }
         LADARxoffset = ROBOTps.x + (LADARps.x*cosf(ROBOTps.theta)-LADARps.y*sinf(ROBOTps.theta - PI/2.0));
