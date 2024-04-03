@@ -81,16 +81,26 @@ float p_current2 = 0.0;
 float p_old2 = 0.0;
 float prd20=0.0;
 float prd2=0.0;
+//turn = 0.000
+//vref = 1.000
+//refRightWall= 1.200
+//leftTurnStartThreshold= 2.240
+//LeftTurnStopThreshold= 2.250
+//KPFrontWall= -0.100
+//KPRightWall= -0.100
+//FrontTurnVelocity= 0.300
+//ForwardVelocityRW= 1.000
+//TurnCommandSaturation= 2.000
 
-float vref = 0.0;
+float vref = 1.0;
 float ref_right_wall = 1.2;
-float left_turn_Start_threshold= 1.2;
-float left_turn_Stop_threshold = 6.0;
-float Kp_right_wall = 0.1;
-float Kp_front_wall = 0.1;
-float front_turn_velocity = 0.4;
+float left_turn_Start_threshold= 2.24;
+float left_turn_Stop_threshold = 2.25;
+float Kp_right_wall = -.1;
+float Kp_front_wall = -.1;
+float front_turn_velocity = 0.3;
 float forward_velocity = 1.0;
-float turn_command_saturation = 1.0;
+float turn_command_saturation = 2.0;
 float all = 0.0;
 uint32_t QEP_maxvalue = 0xFFFFFFFFU;
 float Cpos = 1.866*0.6; // 1.48;
@@ -784,8 +794,8 @@ void main(void)
     {
         if (UARTPrint == 1 ) {
             serial_printf(&SerialA,"aX:%.2f,aY:%.2f,aZ:%.2f gX: %.2f gY: %.2f gZ: %.2f \r\n",aXadj,aYadj,aZadj, gXadj, gYadj, gZadj);
-            UART_printfLine(1,"FR %.2f RB %.2f",LADARrightfront,LADARrightback);
-            UART_printfLine(2,"Mode:%d, turn:%.2f",right_wall_follow_state,turn);
+            UART_printfLine(1,"KPR %.2f, RWR %.2f",Kp_right_wall, ref_right_wall);
+            UART_printfLine(2,"error %.2f turn:%.2f",ref_right_wall-LADARrightfront,turn);
             UARTPrint = 0;
         }
     }
@@ -1043,7 +1053,7 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
     switch(right_wall_follow_state){
     case 1:
         //Left Turn
-        turn = Kp_front_wall*(LADARfront - 14.5);
+        turn = Kp_front_wall*(14.5 - LADARfront);
         vref = front_turn_velocity;
         if (LADARfront > left_turn_Stop_threshold){
             right_wall_follow_state = 2;
@@ -1054,12 +1064,12 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
         break;
     case 2:
         //Right Wall follow
-        turn = Kp_right_wall*(LADARrightfront - ref_right_wall);
+        turn = Kp_right_wall*(ref_right_wall - LADARrightfront);
         vref = forward_velocity;
         if (LADARfront < left_turn_Start_threshold){
             right_wall_follow_state = 1;
         }
-        if (LADARrightfront > (2*ref_right_wall) && (LADARrightback < 1.25*ref_right_wall)){
+        if (LADARrightfront > (2*ref_right_wall) && (LADARrightback < 1.55*ref_right_wall)){
             right_wall_follow_state = 3;
         }
         break;
@@ -1199,6 +1209,7 @@ __interrupt void SWI2_MiddlePriority(void)     // RAM_CORRECTABLE_ERROR
             ladar_pts[LADARi].y = LADARyoffset + ladar_data[LADARi].distance_ping*sinf(ladar_data[LADARi].angle + ROBOTps.theta);
 
         }
+
     } else if (LADARpingpong == 0) {
         // LADARrightfront is the min of dist 52, 53, 54, 55, 56
         LADARrightfront = 19; // 19 is greater than max feet
