@@ -92,12 +92,14 @@ float prd2=0.0;
 //ForwardVelocityRW= 1.000
 //TurnCommandSaturation= 2.000
 
+float theta = 0;
+
 float vref = 1.0;
 float ref_right_wall = 1.2;
-float left_turn_Start_threshold= 2.24;
-float left_turn_Stop_threshold = 2.25;
-float Kp_right_wall = -.1;
-float Kp_front_wall = -.1;
+float left_turn_Start_threshold= 1.5;
+float left_turn_Stop_threshold = 2;
+float Kp_right_wall = -2;
+float Kp_front_wall = -1;
 float front_turn_velocity = 0.3;
 float forward_velocity = 1.0;
 float turn_command_saturation = 2.0;
@@ -143,7 +145,7 @@ float gZadj=0;
 float aXadj=0;
 float aYadj=0;
 float aZadj=0;
-
+float gZ_old = 0;
 float gyroX = 0;
 float gyroY = 0;
 float gyroZ = 0;
@@ -185,6 +187,11 @@ pose ROBOTps = {0,0,0}; //robot position
 pose LADARps = {3.5/12.0,0,1};  // 3.5/12 for front mounting, theta is not used in this current code
 float printLinux1 = 0;
 float printLinux2 = 0;
+
+float spdaverage = 0;
+float spdaverage_prev = 0;
+float robotxprev = 0;
+float robotyprev = 0;
 
 void setupSpib(void) //Call this function in main() somewhere after the DINT; line of code.
 {
@@ -794,8 +801,10 @@ void main(void)
     {
         if (UARTPrint == 1 ) {
             serial_printf(&SerialA,"aX:%.2f,aY:%.2f,aZ:%.2f gX: %.2f gY: %.2f gZ: %.2f \r\n",aXadj,aYadj,aZadj, gXadj, gYadj, gZadj);
-            UART_printfLine(1,"KPR %.2f, RWR %.2f",Kp_right_wall, ref_right_wall);
-            UART_printfLine(2,"error %.2f turn:%.2f",ref_right_wall-LADARrightfront,turn);
+            //            UART_printfLine(1,"KPR %.2f, RWR %.2f",Kp_right_wall, ref_right_wall);
+            //            UART_printfLine(2,"error %.2f turn:%.2f",ref_right_wall-LADARrightfront,turn);
+            UART_printfLine(1,"theta: %.2f", theta);
+            UART_printfLine(2,"LV1: %.2f, LV2:  %.2f", printLV1, printLV1);
             UARTPrint = 0;
         }
     }
@@ -886,7 +895,7 @@ __interrupt void SPIB_isr(void){
     accY_raw=SpibRegs.SPIRXBUF;
     accZ_raw=SpibRegs.SPIRXBUF;
     temp=SpibRegs.SPIRXBUF;
-    gyroX_raw=SpibRegs.SPIRXBUF;
+    gyroX_raw = SpibRegs.SPIRXBUF;
     gyroY_raw=SpibRegs.SPIRXBUF;
     gyroZ_raw=SpibRegs.SPIRXBUF;
 
@@ -1024,12 +1033,14 @@ __interrupt void SPIB_isr(void){
     // Later when actually communicating with the MPU9250 do something with the data. Now do nothing.
     gXadj=gyroX_raw/32767.0*250.0 - zeroX;
     gYadj=gyroY_raw/32767.0*250.0 - zeroY;
-    gZadj=gyroZ_raw/32767.0*250.0 - zeroZ;
+    gZadj = gyroZ_raw/32767.0*250.0 - zeroZ;
     aXadj=accX_raw/32767.0*4.0;
     aYadj=accY_raw/32767.0*4.0;
     aZadj=accZ_raw/32767.0*4.0;
+
     PostSWI1();
     SPBISRInterruptCount++;
+
 
 
 
@@ -1113,6 +1124,21 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
         zeroY = sumY/2000;
         zeroZ = sumZ/2000;
     }
+    else{
+        gZadj = gyroZ_raw/32767.0*250.0 - zeroZ;
+        theta += PI*(gZadj+gZ_old)/2*0.001/180;
+        gZ_old = gZadj;
+        ROBOTps.theta = theta;
+
+        spdaverage = (v1 + v2)/2;
+        ROBOTps.x = robotxprev + cos(ROBOTps.theta)*((spdaverage + spdaverage_prev)/2)*0.001;
+        ROBOTps.y = robotyprev + sin(ROBOTps.theta)*((spdaverage + spdaverage_prev)/2)*0.001;
+        spdaverage_prev = spdaverage;
+        robotxprev = ROBOTps.x;
+        robotyprev = ROBOTps.y;
+
+    }
+
     if (newLinuxCommands == 1) {
         newLinuxCommands = 0;
         vref = LinuxCommands[0];
