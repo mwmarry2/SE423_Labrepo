@@ -37,7 +37,6 @@ __interrupt void SWI1_HighestPriority(void);
 __interrupt void SWI2_MiddlePriority(void);
 __interrupt void SWI3_LowestPriority(void);
 
-
 // Count variables
 uint32_t numTimer0calls = 0;
 uint32_t numSWIcalls = 0;
@@ -848,6 +847,9 @@ __interrupt void cpu_timer2_isr(void)
     if ((CpuTimer2.InterruptCount % 10) == 0) {
         //UARTPrint = 1;
     }
+
+
+
 }
 __interrupt void ADCC_ISR(void)
 {
