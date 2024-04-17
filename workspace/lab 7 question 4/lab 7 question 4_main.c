@@ -1,5 +1,3 @@
-// #Group 77 is commenting this code. Comments marked by Group77
-
 //#############################################################################
 // FILE:   FinalProjectStarter_main.c
 //
@@ -50,6 +48,19 @@ int16_t EPwm2A_F28027 = 1500;
 uint32_t numTimer0calls = 0;
 uint16_t UARTPrint = 0;
 
+float RCangle = 60;
+
+float kpvision = 0.05;
+float colcentroid = 0;
+uint16_t case1count = 0;
+uint16_t case22count = 0;
+uint16_t case24count = 0;
+uint16_t case26count = 0;
+uint16_t case32count = 0;
+uint16_t case34count = 0;
+uint16_t case36count = 0;
+
+
 float printLV1 = 0;
 float printLV2 = 0;
 
@@ -79,7 +90,7 @@ extern float fromCAMvaluesThreshold1[CAMNUM_FROM_FLOATS];
 extern uint16_t NewCAMDataThreshold2;  // Flag new data
 extern float fromCAMvaluesThreshold2[CAMNUM_FROM_FLOATS];
 
-float MaxAreaThreshold1 = 0;
+float MaxAreaThreshold1 = 0; //change this by testing
 float MaxColThreshold1 = 0;
 float MaxRowThreshold1 = 0;
 float NextLargestAreaThreshold1 = 0;
@@ -112,7 +123,7 @@ int16_t RobotState = 1;
 int16_t checkfronttally = 0;
 int32_t WallFollowtime = 0;
 
-#define NUMWAYPOINTS 11 // added 3 more way points
+#define NUMWAYPOINTS 10
 uint16_t statePos = 0;
 pose robotdest[NUMWAYPOINTS];  // array of waypoints for the robot
 uint16_t i = 0;//for loop
@@ -217,19 +228,7 @@ int16_t DAN28027Garbage = 0;
 int16_t dan28027adc1 = 0;
 int16_t dan28027adc2 = 0;
 uint16_t MPU9250ignoreCNT = 0;  //This is ignoring the first few interrupts if ADCC_ISR and start sending to IMU after these first few interrupts.
-float distfun = 0;
-float colcentroid = 0;
-float kpvision = -0.1;
-float Kp_right_wall = -3;
-float forward_velocity = 1.0;
-float turn_command_saturation = 2.5;
-int32_t counter22 = 0;
-int32_t counter24 = 0;
-int32_t counter26 = 0;
-int32_t counter1 = 0;
-int32_t counter32 = 0;
-int32_t counter34 = 0;
-int32_t counter36 = 0;
+
 void main(void)
 {
     // PLL, WatchDog, enable Peripheral Clocks
@@ -325,10 +324,8 @@ void main(void)
 
     DELAY_US(1000000);  // Delay 1 second giving Lidar Time to power on after system power on
 
-    init_serialSCIA(&SerialA,115200);
     init_serialSCIB(&SerialB,19200);
     init_serialSCIC(&SerialC,19200);
-    init_serialSCID(&SerialD,2083332);
 
     for (LADARi = 0; LADARi < 228; LADARi++) {
         ladar_data[LADARi].angle = ((3*LADARi+44)*0.3515625-135)*0.01745329; //0.017453292519943 is pi/180, multiplication is faster; 0.3515625 is 360/1024
@@ -386,11 +383,9 @@ void main(void)
     robotdest[5].x = 4;     robotdest[5].y = 2;
     robotdest[6].x = 4;     robotdest[6].y = 10;
     robotdest[7].x = 0;     robotdest[7].y = 9;
-    // Group 77
-    //Added points to go to center of the cage, then to three two outside, then to three tiles left
-    robotdest[8].x = 0;     robotdest[8].y = 5;
-    robotdest[9].x = 0;     robotdest[9].y = -3;
-    robotdest[10].x = 4;     robotdest[10].y = -3;
+    robotdest[8].x = -3;     robotdest[8].y = 2;
+    robotdest[9].x = 3;     robotdest[9].y = 2;
+
     // ROBOTps will be updated by Optitrack during gyro calibration
     // TODO: specify the starting position of the robot
     ROBOTps.x = 0;          //the estimate in array form (useful for matrix operations)
@@ -406,6 +401,9 @@ void main(void)
     SpibRegs.SPIFFRX.bit.RXFFINTCLR=1; // Clear Interrupt flag
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP6;
     EPwm4Regs.TBCTL.bit.CTRMODE = 0; //unfreeze, and enter up count mode
+
+    init_serialSCIA(&SerialA,115200);
+    init_serialSCID(&SerialD,2083332);
 
     // Enable global Interrupts and higher priority real-time debug events
     EINT;  // Enable Global interrupt INTM
@@ -438,10 +436,12 @@ void main(void)
         if (UARTPrint == 1 ) {
 
             if (readbuttons() == 0) {
-                UART_printfLine(1,"Vrf:%.2f trn:%.2f",vref,turn);
-                //                UART_printfLine(1,"x:%.2f:y:%.2f:a%.2f",ROBOTps.x,ROBOTps.y,ROBOTps.theta);
-                //UART_printfLine(2,"F%.4f R%.4f",LADARfront,LADARrightfront);
-                UART_printfLine(2,"dt:%.2f St:%d",distfun,RobotState);
+                //                UART_printfLine(1,"Vrf:%.2f trn:%.2f",vref,turn);
+                ////                UART_printfLine(1,"x:%.2f:y:%.2f:a%.2f",ROBOTps.x,ROBOTps.y,ROBOTps.theta);
+                //                UART_printfLine(2,"F%.4f R%.4f",LADARfront,LADARrightfront);
+
+                UART_printfLine(1,"Angle %.4f",RCangle);
+
             } else if (readbuttons() == 1) {
                 UART_printfLine(1,"O1A:%.0fC:%.0fR:%.0f",MaxAreaThreshold1,MaxColThreshold1,MaxRowThreshold1);
                 UART_printfLine(2,"P1A:%.0fC:%.0fR:%.0f",MaxAreaThreshold2,MaxColThreshold2,MaxRowThreshold2);
@@ -582,6 +582,15 @@ __interrupt void cpu_timer2_isr(void)
     //  if ((CpuTimer2.InterruptCount % 10) == 0) {
     //      UARTPrint = 1;
     //  }
+
+    RCangle = readEncWheel();
+
+    setEPWM3A_RCServo(RCangle); //RCangle is a value from -90 to 90
+    setEPWM3B_RCServo(RCangle);
+    setEPWM5A_RCServo(RCangle);
+    setEPWM5B_RCServo(RCangle);
+    setEPWM6A_RCServo(RCangle);
+
 }
 
 void setF28027EPWM1A(float controleffort){
@@ -703,17 +712,15 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             newLinuxCommands = 0;
             printLinux1 = LinuxCommands[0];
             printLinux2 = LinuxCommands[1];
-            vref = printLinux1;
-            turn = printLinux2;
-            ref_right_wall = LinuxCommands[2];
-            left_turn_Start_threshold = LinuxCommands[3];
-            left_turn_Stop_threshold = LinuxCommands[4];
-            Kp_right_wall = LinuxCommands[5];
-            Kp_front_wall = LinuxCommands[6];
-            front_turn_velocity = LinuxCommands[7];
-            forward_velocity = LinuxCommands[8];
-            turn_command_saturation = LinuxCommands[9];
-            kpvision = LinuxCommands[10];
+            //?? = LinuxCommands[2];
+            //?? = LinuxCommands[3];
+            //?? = LinuxCommands[4];
+            //?? = LinuxCommands[5];
+            //?? = LinuxCommands[6];
+            //?? = LinuxCommands[7];
+            //?? = LinuxCommands[8];
+            //?? = LinuxCommands[9];
+            //?? = LinuxCommands[10];
         }
 
         if (NewCAMDataThreshold1 == 1) {
@@ -735,8 +742,6 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
                 GpioDataRegs.GPDTOGGLE.bit.GPIO97 = 1;
             }
         }
-
-        distfun = -0.000006016852483369215*MaxRowThreshold1*MaxRowThreshold1*MaxRowThreshold1+0.003147417566248*MaxRowThreshold1*MaxRowThreshold1-0.550710700825474*MaxRowThreshold1+33.771207029520184;
 
         if (NewCAMDataThreshold2 == 1) {
             NewCAMDataThreshold2 = 0;
@@ -830,41 +835,30 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             statePos = (statePos+1)%NUMWAYPOINTS;
         }
         // state machine
+        //RobotState = 20;
         switch (RobotState) {
         case 1:
-            counter1++;
 
             // vref and turn are the vref and turn returned from xy_control
-            //Group77, below is to make sure that the states cannot change immediately to state 20 or 30
-            if (counter1<2000){
-                RobotState = 1;
-            }else {
-                if (LADARfront < 1.2) {
-                    vref = 0.2;
-                    checkfronttally++;
-                    if (checkfronttally > 310) { // check if LADARfront < 1.2 for 310ms or 3 LADAR samples
-                        RobotState = 10; // Wall follow
-                        WallFollowtime = 0;
-                        right_wall_follow_state = 1;
-                    }
-                }  else {
-                    checkfronttally = 0;
-                }
+//            case1count++;
+//
+//            if (MaxAreaThreshold1 > 1200){
+//                RobotState = 20;
+//            }
 
-                if (MaxAreaThreshold1>90){
-                    //Group 77 if MaxAreaThreshold1 is greater than 90, switch to state 20
-                    //Area of 90 found by putting robot on the floor, and moving a golf ball
-                    //toward robot to calculate starting distance of following the golf ball
-                    RobotState = 20;
+            if (LADARfront < 1.2) {
+                vref = 0.2;
+                checkfronttally++;
+                if (checkfronttally > 310) { // check if LADARfront < 1.2 for 310ms or 3 LADAR samples
+                    RobotState = 10; // Wall follow
+                    WallFollowtime = 0;
+                    right_wall_follow_state = 1;
                 }
-                else if(MaxAreaThreshold2>90){
-                    RobotState = 30;
-                }
+            } else {
+                checkfronttally = 0;
             }
 
             break;
-
-     //Group 77, wall following to X,Y point
         case 10:
             if (right_wall_follow_state == 1) {
                 //Left Turn
@@ -894,105 +888,55 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
                 checkfronttally = 0;
             }
             break;
-//Group 77, Robot turns toward golf ball and drives it towards the largest orange blob in camera's view
+
         case 20:
-            colcentroid = MaxColThreshold1-160;
-            if ((MaxColThreshold1==0)||(MaxAreaThreshold1<3)){
+            // put vision code here
+
+            colcentroid = MaxColThreshold1 - 160;
+
+            if (MaxColThreshold1 == 0 || MaxAreaThreshold1 < 3) {
                 vref = 0;
                 turn = 0;
-            //Group 77 if MaxRowThreshold> large bottom row number, switches to robot state 22
-            }else if(MaxRowThreshold1>200){
+            }
+            else {
+                vref = 0.75;
+                turn = kpvision*(0 - colcentroid);
+            }
+            // start kpvision out as 0.05 and kpvision could need to be negative.
+
+            if (MaxRowThreshold1 > 150){
                 RobotState = 22;
-                counter22 = 0;
             }
-            else{
-                vref = 0.75;
-                turn = kpvision*(0-colcentroid);
-            }
-            // start kpvision out as 0.05 and kpvision could need to be negative.
-            // put vision code here
-            break;
 
-       //Group 77, stops robot to simulate gripper door open
         case 22:
-            counter22++;
+            case22count ++;
             vref = 0;
             turn = 0;
-            if (counter22>1000){
+            if (case22count = 1000){ //1 sec?
                 RobotState = 24;
-                counter24 = 0;
+                case22count = 0;
             }
-            // start kpvision out as 0.05 and kpvision could need to be negative.
-            // put vision code here
-            break;
 
-        //Group 77, turn and Vref set to 0, count variable tracks how long time is spent in state
         case 24:
-            counter24++;
+            case24count ++;
             vref = 0.5;
             turn = 0;
-            if (counter24>1000){
-                RobotState = 26;
-                counter26 = 0;
+            if (case24count = 1000){ //1 sec?
+                RobotState = 24;
+                case24count = 0;
             }
-            break;
-        //Group 77, sets turn and Vref to 0, count variable tracks how long time is spent in state
-        //When 1 second passes, switch to robot state 1 so robot can go to desired X,Y point
+
+
         case 26:
-            counter26++;
+            case26count ++;
             vref = 0;
             turn = 0;
-            if (counter26>1000){
+            if (case26count = 1000){ //1 sec?
                 RobotState = 1;
-                counter1 = 0;
+                case26count = 0;
             }
-            break;
-            /////////////////////////////////////////////
-        //Group 77, below states are same as above but with purple thresholds
-        case 30:
-            colcentroid = MaxColThreshold2-160;
-            if ((MaxColThreshold2==0)||(MaxAreaThreshold2<3)){
-                vref = 0;
-                turn = 0;
-            }else if(MaxRowThreshold2>200){
-                RobotState = 32;
-                counter32 = 0;
-            }
-            else{
-                vref = 0.75;
-                turn = kpvision*(0-colcentroid);
-            }
-            // start kpvision out as 0.05 and kpvision could need to be negative.
-            // put vision code here
-            break;
-        case 32:
-            counter32++;
-            vref = 0;
-            turn = 0;
-            if (counter32>1000){
-                RobotState = 34;
-                counter34 = 0;
-            }
-            // start kpvision out as 0.05 and kpvision could need to be negative.
-            // put vision code here
-            break;
-        case 34:
-            counter34++;
-            vref = 0.5;
-            turn = 0;
-            if (counter34>1000){
-                RobotState = 36;
-                counter36 = 0;
-            }
-            break;
-        case 36:
-            counter36++;
-            vref = 0;
-            turn = 0;
-            if (counter36>1000){
-                RobotState = 1;
-                counter1 = 0;
-            }
+
+
             break;
         default:
             break;
