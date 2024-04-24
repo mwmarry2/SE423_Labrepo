@@ -49,8 +49,15 @@ uint32_t numTimer0calls = 0;
 uint16_t UARTPrint = 0;
 
 float RCangle = 60;
+float RCOpen = 60;
+float RCClosed = -60;
+float RCPurple = 60;
+float RCOrange = -60;
 
-float kpvision = 0.05;
+float MaxDistance1 = 0;
+float MaxDistance2 = 0;
+
+float kpvision = -0.05;
 float colcentroid = 0;
 uint16_t case1count = 0;
 uint16_t case22count = 0;
@@ -59,7 +66,6 @@ uint16_t case26count = 0;
 uint16_t case32count = 0;
 uint16_t case34count = 0;
 uint16_t case36count = 0;
-
 
 float printLV1 = 0;
 float printLV2 = 0;
@@ -436,11 +442,13 @@ void main(void)
         if (UARTPrint == 1 ) {
 
             if (readbuttons() == 0) {
-                //                UART_printfLine(1,"Vrf:%.2f trn:%.2f",vref,turn);
-                ////                UART_printfLine(1,"x:%.2f:y:%.2f:a%.2f",ROBOTps.x,ROBOTps.y,ROBOTps.theta);
-                //                UART_printfLine(2,"F%.4f R%.4f",LADARfront,LADARrightfront);
+                //                                UART_printfLine(1,"Vrf:%.2f trn:%.2f",vref,turn);
+                //                UART_printfLine(1,"x:%.2f:y:%.2f:a%.2f",ROBOTps.x,ROBOTps.y,ROBOTps.theta);
+                //                                UART_printfLine(2,"F%.4f R%.4f",LADARfront,LADARrightfront);
+//                UART_printfLine(1,"Angle %.4f",RCangle);
 
-                UART_printfLine(1,"Angle %.4f",RCangle);
+                UART_printfLine(1,"case %d",RobotState);
+                UART_printfLine(2,"1:%.3f 2:%.3f",MaxDistance1,MaxDistance2);
 
             } else if (readbuttons() == 1) {
                 UART_printfLine(1,"O1A:%.0fC:%.0fR:%.0f",MaxAreaThreshold1,MaxColThreshold1,MaxRowThreshold1);
@@ -583,13 +591,13 @@ __interrupt void cpu_timer2_isr(void)
     //      UARTPrint = 1;
     //  }
 
-    RCangle = readEncWheel();
+        RCangle = readEncWheel();
 
-    setEPWM3A_RCServo(RCangle); //RCangle is a value from -90 to 90
-    setEPWM3B_RCServo(RCangle);
-    setEPWM5A_RCServo(RCangle);
-    setEPWM5B_RCServo(RCangle);
-    setEPWM6A_RCServo(RCangle);
+        setEPWM3A_RCServo(RCangle); //RCangle is a value from -90 to 90
+        setEPWM3B_RCServo(RCangle);
+    //    setEPWM5A_RCServo(RCangle);
+    //    setEPWM5B_RCServo(RCangle);
+    //    setEPWM6A_RCServo(RCangle);
 
 }
 
@@ -729,6 +737,8 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             MaxColThreshold1 = fromCAMvaluesThreshold1[1];
             MaxRowThreshold1 = fromCAMvaluesThreshold1[2];
 
+            MaxDistance1 = (-9.884*pow(10,-5))*pow(MaxRowThreshold1,3) + (0.05312)* pow(MaxRowThreshold1,2) + (-9.674)*MaxRowThreshold1 + 617.6;
+
             NextLargestAreaThreshold1 = fromCAMvaluesThreshold1[3];
             NextLargestColThreshold1 = fromCAMvaluesThreshold1[4];
             NextLargestRowThreshold1 = fromCAMvaluesThreshold1[5];
@@ -748,6 +758,8 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             MaxAreaThreshold2 = fromCAMvaluesThreshold2[0];
             MaxColThreshold2 = fromCAMvaluesThreshold2[1];
             MaxRowThreshold2 = fromCAMvaluesThreshold2[2];
+
+            MaxDistance2 = (-9.884*pow(10,-5))*pow(MaxRowThreshold2,3) + (0.05312)* pow(MaxRowThreshold2,2) + (-9.674)*MaxRowThreshold2 + 617.6;
 
             NextLargestAreaThreshold2 = fromCAMvaluesThreshold2[3];
             NextLargestColThreshold2 = fromCAMvaluesThreshold2[4];
@@ -835,17 +847,19 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             statePos = (statePos+1)%NUMWAYPOINTS;
         }
         // state machine
-        //RobotState = 20;
         switch (RobotState) {
         case 1:
 
-            // vref and turn are the vref and turn returned from xy_control
-//            case1count++;
-//
-//            if (MaxAreaThreshold1 > 1200){
-//                RobotState = 20;
-//            }
+            case1count++;
 
+            if (MaxAreaThreshold1 > 50){
+                RobotState = 20;
+            }
+            if (MaxAreaThreshold2 > 50){
+                RobotState = 30;
+            }
+
+            //vref and turn are the vref and turn returned from xy_control
             if (LADARfront < 1.2) {
                 vref = 0.2;
                 checkfronttally++;
@@ -857,8 +871,8 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             } else {
                 checkfronttally = 0;
             }
-
             break;
+
         case 10:
             if (right_wall_follow_state == 1) {
                 //Left Turn
@@ -907,37 +921,96 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             if (MaxRowThreshold1 > 150){
                 RobotState = 22;
             }
+            break;
 
         case 22:
             case22count ++;
             vref = 0;
             turn = 0;
-            if (case22count = 1000){ //1 sec?
+//            setEPWM3A_RCServo(RCOpen);
+//            setEPWM3B_RCServo(RCPurple);
+            if (case22count == 1000){ //1 sec?
                 RobotState = 24;
                 case22count = 0;
             }
+            break;
 
         case 24:
             case24count ++;
             vref = 0.5;
             turn = 0;
-            if (case24count = 1000){ //1 sec?
-                RobotState = 24;
+            if (case24count == 3000){ //1 sec?
+                RobotState = 26;
                 case24count = 0;
             }
-
+            break;
 
         case 26:
             case26count ++;
             vref = 0;
             turn = 0;
-            if (case26count = 1000){ //1 sec?
+//            setEPWM3A_RCServo(RCClosed);
+//            setEPWM3B_RCServo(0);
+            if (case26count == 1000){ //1 sec?
                 RobotState = 1;
                 case26count = 0;
             }
-
-
             break;
+
+        case 30:
+            // put vision code here
+
+            colcentroid = MaxColThreshold2 - 160;
+
+            if (MaxColThreshold2 == 0 || MaxAreaThreshold2 < 3) {
+                vref = 0;
+                turn = 0;
+            }
+            else {
+                vref = 0.75;
+                turn = kpvision*(0 - colcentroid);
+            }
+            // start kpvision out as 0.05 and kpvision could need to be negative.
+
+            if (MaxRowThreshold2 > 150){
+                RobotState = 32;
+            }
+            break;
+
+        case 32:
+            case32count ++;
+            vref = 0;
+            turn = 0;
+//            setEPWM3A_RCServo(RCOpen);
+//            setEPWM3B_RCServo(RCOrange);
+            if (case32count == 1000){ //1 sec?
+                RobotState = 34;
+                case32count = 0;
+            }
+            break;
+
+        case 34:
+            case34count ++;
+            vref = 0.5;
+            turn = 0;
+            if (case34count == 3000){ //1 sec?
+                RobotState = 36;
+                case34count = 0;
+            }
+            break;
+
+        case 36:
+            case36count ++;
+            vref = 0;
+            turn = 0;
+//            setEPWM3A_RCServo(RCClosed);
+//            setEPWM3B_RCServo(0);
+            if (case36count == 1000){ //1 sec?
+                RobotState = 1;
+                case36count = 0;
+            }
+            break;
+
         default:
             break;
         }
@@ -1069,9 +1142,6 @@ __interrupt void SWI2_MiddlePriority(void)     // RAM_CORRECTABLE_ERROR
 
         }
     }
-
-
-
 
     //###############################################################################################
     //

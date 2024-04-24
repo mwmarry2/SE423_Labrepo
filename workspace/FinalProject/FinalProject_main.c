@@ -1,7 +1,7 @@
 //#############################################################################
-// FILE:   FinalProject_main.c
+// FILE:   FinalProjectStarter_main.c
 //
-// TITLE:  Final Project
+// TITLE:  Final Project Starter
 //#############################################################################
 
 // Included Files
@@ -47,8 +47,6 @@ int16_t EPwm2A_F28027 = 1500;
 
 uint32_t numTimer0calls = 0;
 uint16_t UARTPrint = 0;
-
-float RCangle = 60;
 
 float printLV1 = 0;
 float printLV2 = 0;
@@ -112,7 +110,7 @@ int16_t RobotState = 1;
 int16_t checkfronttally = 0;
 int32_t WallFollowtime = 0;
 
-#define NUMWAYPOINTS 8
+#define NUMWAYPOINTS 6
 uint16_t statePos = 0;
 pose robotdest[NUMWAYPOINTS];  // array of waypoints for the robot
 uint16_t i = 0;//for loop
@@ -368,7 +366,6 @@ void main(void)
     robotdest[4].x = 0;     robotdest[4].y = 11;
     robotdest[5].x = 0;     robotdest[4].y = 0;
 
-
     // ROBOTps will be updated by Optitrack during gyro calibration
     // TODO: specify the starting position of the robot
     ROBOTps.x = 0;          //the estimate in array form (useful for matrix operations)
@@ -562,14 +559,6 @@ __interrupt void cpu_timer2_isr(void)
     //  if ((CpuTimer2.InterruptCount % 10) == 0) {
     //      UARTPrint = 1;
     //  }
-
-
-//    setEPWM3A_RCServo(RCangle); //RCangle is a value from -90 to 90
-//    setEPWM3B_RCServo(RCangle);
-//    setEPWM5A_RCServo(RCangle);
-//    setEPWM5B_RCServo(RCangle);
-//    setEPWM6A_RCServo(RCangle);
-
 }
 
 void setF28027EPWM1A(float controleffort){
