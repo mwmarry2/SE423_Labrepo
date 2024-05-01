@@ -1,7 +1,7 @@
 //#############################################################################
-// FILE:   FinalProjectStarter_main.c
+// FILE:   FinalProject_main.c
 //
-// TITLE:  Final Project Starter
+// TITLE:  Final Project
 //#############################################################################
 
 // Included Files
@@ -40,6 +40,8 @@ __interrupt void SWI3_LowestPriority(void);
 __interrupt void ADCC_ISR(void);
 __interrupt void SPIB_isr(void);
 
+float RCangle = 0; //take out later
+
 void setF28027EPWM1A(float controleffort);
 int16_t EPwm1A_F28027 = 1500;
 void setF28027EPWM2A(float controleffort);
@@ -47,6 +49,41 @@ int16_t EPwm2A_F28027 = 1500;
 
 uint32_t numTimer0calls = 0;
 uint16_t UARTPrint = 0;
+
+float RCOpen = -65;
+float RCClosed = 72;
+float RCPurple = -30; //right?
+float RCOrange = 30; //left?
+
+float MaxDistance1 = 0;
+float MaxDistance2 = 0;
+
+float kpvision = -0.05;
+float colcentroid = 0;
+uint16_t case1count = 0;
+uint16_t case22count = 0;
+uint16_t case24count = 0;
+uint16_t case26count = 0;
+uint16_t case32count = 0;
+uint16_t case34count = 0;
+uint16_t case36count = 0;
+
+float ball1X = 0;
+float ball1Y = 0;
+float ball2X = 0;
+float ball2Y = 0;
+float ball3X = 0;
+float ball3Y = 0;
+float ball4X = 0;
+float ball4Y = 0;
+float ball5X = 0;
+float ball5Y = 0;
+float ball1color = 0;
+float ball2color = 0;
+float ball3color = 0;
+float ball4color = 0;
+float ball5color = 0;
+float ballcount = 1;
 
 float printLV1 = 0;
 float printLV2 = 0;
@@ -364,7 +401,7 @@ void main(void)
     robotdest[2].x = -3;     robotdest[2].y = 7;
     robotdest[3].x = 5;     robotdest[3].y = -3;
     robotdest[4].x = 0;     robotdest[4].y = 11;
-    robotdest[5].x = 0;     robotdest[4].y = 0;
+    robotdest[5].x = 0;     robotdest[5].y = 0;
 
     // ROBOTps will be updated by Optitrack during gyro calibration
     // TODO: specify the starting position of the robot
@@ -418,7 +455,9 @@ void main(void)
             if (readbuttons() == 0) {
                 UART_printfLine(1,"Vrf:%.2f trn:%.2f",vref,turn);				
 //                UART_printfLine(1,"x:%.2f:y:%.2f:a%.2f",ROBOTps.x,ROBOTps.y,ROBOTps.theta);
-                UART_printfLine(2,"F%.4f R%.4f",LADARfront,LADARrightfront);
+//                UART_printfLine(2,"F%.4f R%.4f",LADARfront,LADARrightfront);
+
+                UART_printfLine(2,"State: %d",RobotState);
             } else if (readbuttons() == 1) {
                 UART_printfLine(1,"O1A:%.0fC:%.0fR:%.0f",MaxAreaThreshold1,MaxColThreshold1,MaxRowThreshold1);
                 UART_printfLine(2,"P1A:%.0fC:%.0fR:%.0f",MaxAreaThreshold2,MaxColThreshold2,MaxRowThreshold2);
@@ -551,14 +590,13 @@ __interrupt void cpu_timer1_isr(void)
 // cpu_timer2_isr CPU Timer2 ISR
 __interrupt void cpu_timer2_isr(void)
 {
-    // Blink LaunchPad Blue LED
-    //GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1;
+
+    RCangle = readEncWheel();
+
+//    setEPWM5A_RCServo(RCangle); //RCangle is a value from -90 to 90 IS ARM
+//    setEPWM5B_RCServo(RCangle); //RCangle is a value from -90 to 90 IS SORT
 
     CpuTimer2.InterruptCount++;
-
-    //  if ((CpuTimer2.InterruptCount % 10) == 0) {
-    //      UARTPrint = 1;
-    //  }
 }
 
 void setF28027EPWM1A(float controleffort){
@@ -806,8 +844,16 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
         switch (RobotState) {
         case 1:
 
-            // vref and turn are the vref and turn returned from xy_control
+            case1count++;
 
+            if (MaxAreaThreshold1 > 50){
+                RobotState = 20;
+            }
+            if (MaxAreaThreshold2 > 50){
+                RobotState = 30;
+            }
+
+            //vref and turn are the vref and turn returned from xy_control
             if (LADARfront < 1.2) {
                 vref = 0.2;
                 checkfronttally++;
@@ -819,8 +865,8 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             } else {
                 checkfronttally = 0;
             }
-
             break;
+
         case 10:
             if (right_wall_follow_state == 1) {
                 //Left Turn
@@ -853,6 +899,110 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
 
         case 20:
             // put vision code here
+
+            colcentroid = MaxColThreshold1 - 160;
+
+            if (MaxColThreshold1 == 0 || MaxAreaThreshold1 < 3) {
+                vref = 0;
+                turn = 0;
+            }
+            else {
+                vref = 0.75;
+                turn = kpvision*(0 - colcentroid);
+            }
+            // start kpvision out as 0.05 and kpvision could need to be negative.
+
+            if (MaxRowThreshold1 > 150){
+                RobotState = 22;
+            }
+            break;
+
+        case 22:
+            case22count ++;
+            vref = 0;
+            turn = 0;
+            setEPWM5A_RCServo(RCOpen);
+            setEPWM5B_RCServo(RCPurple);
+            if (case22count == 1000){ //1 sec?
+                RobotState = 24;
+                case22count = 0;
+            }
+            break;
+
+        case 24:
+            case24count ++;
+            vref = 0.5;
+            turn = 0;
+            if (case24count == 3000){ //1 sec?
+                RobotState = 26;
+                case24count = 0;
+            }
+            break;
+
+        case 26:
+            case26count ++;
+            vref = 0;
+            turn = 0;
+            setEPWM5A_RCServo(RCClosed);
+            setEPWM5B_RCServo(0);
+            if (case26count == 1000){ //1 sec?
+                RobotState = 1;
+                case26count = 0;
+            }
+            break;
+
+        case 30:
+            // put vision code here
+
+            colcentroid = MaxColThreshold2 - 160;
+
+            if (MaxColThreshold2 == 0 || MaxAreaThreshold2 < 3) {
+                vref = 0;
+                turn = 0;
+            }
+            else {
+                vref = 0.75;
+                turn = kpvision*(0 - colcentroid);
+            }
+            // start kpvision out as 0.05 and kpvision could need to be negative.
+
+            if (MaxRowThreshold2 > 150){
+                RobotState = 32;
+            }
+            break;
+
+        case 32:
+            case32count ++;
+            vref = 0;
+            turn = 0;
+            setEPWM5A_RCServo(RCOpen);
+            setEPWM5B_RCServo(RCOrange);
+            if (case32count == 1000){ //1 sec?
+                RobotState = 34;
+                case32count = 0;
+            }
+            break;
+
+        case 34:
+            case34count ++;
+            vref = 0.5;
+            turn = 0;
+            if (case34count == 3000){ //1 sec?
+                RobotState = 36;
+                case34count = 0;
+            }
+            break;
+
+        case 36:
+            case36count ++;
+            vref = 0;
+            turn = 0;
+            setEPWM5A_RCServo(RCClosed);
+            setEPWM5B_RCServo(0);
+            if (case36count == 1000){ //1 sec?
+                RobotState = 1;
+                case36count = 0;
+            }
             break;
         default:
             break;
@@ -872,12 +1022,19 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
         if((timecount%250) == 0) {
             DataToLabView.floatData[0] = ROBOTps.x;
             DataToLabView.floatData[1] = ROBOTps.y;
-            DataToLabView.floatData[2] = ROBOTps.theta;
-            DataToLabView.floatData[3] = (float)timecount;
-            DataToLabView.floatData[4] = 0.5*(LeftVel + RightVel);
-            DataToLabView.floatData[5] = (float)RobotState;
-            DataToLabView.floatData[6] = (float)statePos;
-            DataToLabView.floatData[7] = LADARfront;
+            DataToLabView.floatData[2] = ball1X; //Grabbed Ball X
+            DataToLabView.floatData[3] = ball1Y; //Grabbed Ball Y
+            DataToLabView.floatData[4] = ball1color; //Grabbed Ball Color
+            DataToLabView.floatData[5] = ball2Y;
+            DataToLabView.floatData[6] = ball3X;
+            DataToLabView.floatData[7] = ball3Y;
+
+//            DataToLabView.floatData[2] = ROBOTps.theta;
+//            DataToLabView.floatData[3] = (float)timecount;
+//            DataToLabView.floatData[4] = 0.5*(LeftVel + RightVel);
+//            DataToLabView.floatData[5] = (float)RobotState;
+//            DataToLabView.floatData[6] = (float)statePos;
+
             LVsenddata[0] = '*';  // header for LVdata
             LVsenddata[1] = '$';
             for (i=0;i<LVNUM_TOFROM_FLOATS*4;i++) {

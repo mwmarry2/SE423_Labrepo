@@ -448,7 +448,7 @@ void main(void)
 //                UART_printfLine(1,"Angle %.4f",RCangle);
 
                 UART_printfLine(1,"case %d",RobotState);
-                UART_printfLine(2,"1:%.3f 2:%.3f",MaxDistance1,MaxDistance2);
+                UART_printfLine(2,"1: %.2f 2: %.2f",MaxDistance1,MaxDistance2);
 
             } else if (readbuttons() == 1) {
                 UART_printfLine(1,"O1A:%.0fC:%.0fR:%.0f",MaxAreaThreshold1,MaxColThreshold1,MaxRowThreshold1);

@@ -13,4 +13,6 @@
 	<templateProperties value="id=finalprojectstarter.projectspec.FinalProjectStarter"/>
 	<origin value="C:\dlibes2_mwmarry2\SE423_Labrepo\C2000Ware_4_01_00_00\device_support\f2837xd\examples\cpu1\FinalProjectStarter\cpu01\ccs\finalprojectstarter.projectspec"/>
 	<filesToOpen value=""/>
+	<connection value="common/targetdb/connections/TIXDS2XXUSB_Connection.xml"/>
+	<isTargetManual value="false"/>
 </projectOptions>
