@@ -52,14 +52,17 @@ uint16_t UARTPrint = 0;
 
 float RCOpen = -65;
 float RCClosed = 72;
-float RCPurple = -30; //right?
-float RCOrange = 30; //left?
+float RCOrange = 30; //left
+float RCPurple = -30; //right
 
 float MaxDistance1 = 0;
 float MaxDistance2 = 0;
 
-float kpvision = -0.05;
+float kpvision = -0.1;
 float colcentroid = 0;
+float pickupRowOrange = 200; //right
+float pickupRowPurple = 175; //left
+float pickupTime = 2000;
 uint16_t case1count = 0;
 uint16_t case22count = 0;
 uint16_t case24count = 0;
@@ -68,22 +71,10 @@ uint16_t case32count = 0;
 uint16_t case34count = 0;
 uint16_t case36count = 0;
 
-float ball1X = 0;
-float ball1Y = 0;
-float ball2X = 0;
-float ball2Y = 0;
-float ball3X = 0;
-float ball3Y = 0;
-float ball4X = 0;
-float ball4Y = 0;
-float ball5X = 0;
-float ball5Y = 0;
-float ball1color = 0;
-float ball2color = 0;
-float ball3color = 0;
-float ball4color = 0;
-float ball5color = 0;
-float ballcount = 1;
+float ballX = 0;
+float ballY = 0;
+uint16_t ballcolor = 0;
+uint16_t ballcount = 0;
 
 float printLV1 = 0;
 float printLV2 = 0;
@@ -96,6 +87,7 @@ char G_command[] = "G04472503\n"; //command for getting distance -120 to 120 deg
 uint16_t G_len = 11; //length of command
 xy ladar_pts[228]; //xy data
 float LADARrightfront = 0;
+float LADARleftfront = 0;
 float LADARfront = 0;
 float LADARtemp_x = 0;
 float LADARtemp_y = 0;
@@ -152,15 +144,23 @@ uint16_t statePos = 0;
 pose robotdest[NUMWAYPOINTS];  // array of waypoints for the robot
 uint16_t i = 0;//for loop
 
-uint16_t right_wall_follow_state = 2;  // right follow
+//wall follow variables
 float Kp_front_wall = -2.0;
 float front_turn_velocity = 0.2;
-float left_turn_Stop_threshold = 3.5;
-float Kp_right_wal = -4.0;
-float ref_right_wall = 1.1;
 float foward_velocity = 1.0;
-float left_turn_Start_threshold = 1.3;
 float turn_saturation = 2.5;
+
+uint16_t right_wall_follow_state = 2;  // right follow
+float left_turn_Start_threshold = 1.3;
+float left_turn_Stop_threshold = 3.5;
+float Kp_right_wall = -4.0;
+float ref_right_wall = 1.1;
+
+uint16_t left_wall_follow_state = 2;  // left follow
+float right_turn_Start_threshold = 1.3;
+float right_turn_Stop_threshold = 3.5;
+float Kp_left_wall = -4.0;
+float ref_left_wall = 1.1;
 
 float x_pred[3][1] = {{0},{0},{0}};                 // predicted state
 
@@ -397,11 +397,11 @@ void main(void)
 
 
     robotdest[0].x = -5;    robotdest[0].y = -3;
-    robotdest[1].x = 3;    robotdest[1].y = 7;
-    robotdest[2].x = -3;     robotdest[2].y = 7;
+    robotdest[1].x = 3;     robotdest[1].y = 7;
+    robotdest[2].x = -3;    robotdest[2].y = 7;
     robotdest[3].x = 5;     robotdest[3].y = -3;
     robotdest[4].x = 0;     robotdest[4].y = 11;
-    robotdest[5].x = 0;     robotdest[5].y = 0;
+    robotdest[5].x = 0;     robotdest[5].y = -1;
 
     // ROBOTps will be updated by Optitrack during gyro calibration
     // TODO: specify the starting position of the robot
@@ -418,7 +418,7 @@ void main(void)
     SpibRegs.SPIFFRX.bit.RXFFINTCLR=1; // Clear Interrupt flag
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP6;
     EPwm4Regs.TBCTL.bit.CTRMODE = 0; //unfreeze, and enter up count mode
-	
+
     init_serialSCIA(&SerialA,115200);
     init_serialSCID(&SerialD,2083332);
 
@@ -453,15 +453,17 @@ void main(void)
         if (UARTPrint == 1 ) {
 
             if (readbuttons() == 0) {
-                UART_printfLine(1,"Vrf:%.2f trn:%.2f",vref,turn);				
-//                UART_printfLine(1,"x:%.2f:y:%.2f:a%.2f",ROBOTps.x,ROBOTps.y,ROBOTps.theta);
-//                UART_printfLine(2,"F%.4f R%.4f",LADARfront,LADARrightfront);
+                //                                UART_printfLine(1,"Vrf:%.2f trn:%.2f",vref,turn);
+                //                UART_printfLine(1,"x:%.2f:y:%.2f:a%.2f",ROBOTps.x,ROBOTps.y,ROBOTps.theta);
+                UART_printfLine(1,"cnt: %d col: %d",ballcount,ballcolor);
+                //                UART_printfLine(2,"F%.4f L%.4f",LADARfront,LADARleftfront);
+                UART_printfLine(2,"State: %d %.2f %.2f",RobotState,ballX,ballY);
 
-                UART_printfLine(2,"State: %d",RobotState);
+
             } else if (readbuttons() == 1) {
                 UART_printfLine(1,"O1A:%.0fC:%.0fR:%.0f",MaxAreaThreshold1,MaxColThreshold1,MaxRowThreshold1);
                 UART_printfLine(2,"P1A:%.0fC:%.0fR:%.0f",MaxAreaThreshold2,MaxColThreshold2,MaxRowThreshold2);
-				//UART_printfLine(1,"LV1:%.3f LV2:%.3f",printLV1,printLV2);
+                //UART_printfLine(1,"LV1:%.3f LV2:%.3f",printLV1,printLV2);
                 //UART_printfLine(2,"Ln1:%.3f Ln2:%.3f",printLinux1,printLinux2);
             } else if (readbuttons() == 2) {
                 UART_printfLine(1,"O2A:%.0fC:%.0fR:%.0f",NextLargestAreaThreshold1,NextLargestColThreshold1,NextLargestRowThreshold1);
@@ -593,8 +595,8 @@ __interrupt void cpu_timer2_isr(void)
 
     RCangle = readEncWheel();
 
-//    setEPWM5A_RCServo(RCangle); //RCangle is a value from -90 to 90 IS ARM
-//    setEPWM5B_RCServo(RCangle); //RCangle is a value from -90 to 90 IS SORT
+    //    setEPWM5A_RCServo(RCangle); //RCangle is a value from -90 to 90 IS ARM
+    //    setEPWM5B_RCServo(RCangle); //RCangle is a value from -90 to 90 IS SORT
 
     CpuTimer2.InterruptCount++;
 }
@@ -742,7 +744,7 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             NextNextLargestAreaThreshold1 = fromCAMvaluesThreshold1[6];
             NextNextLargestColThreshold1 = fromCAMvaluesThreshold1[7];
             NextNextLargestRowThreshold1 = fromCAMvaluesThreshold1[8];
-			numThres1++;
+            numThres1++;
             if ((numThres1 % 5) == 0) {
                 // LED4 is GPIO97
                 GpioDataRegs.GPDTOGGLE.bit.GPIO97 = 1;
@@ -762,8 +764,8 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             NextNextLargestAreaThreshold2 = fromCAMvaluesThreshold2[6];
             NextNextLargestColThreshold2 = fromCAMvaluesThreshold2[7];
             NextNextLargestRowThreshold2 = fromCAMvaluesThreshold2[8];
-			numThres2++;
-			if ((numThres2 % 5) == 0) {
+            numThres2++;
+            if ((numThres2 % 5) == 0) {
                 // LED5 is GPIO111
                 GpioDataRegs.GPDTOGGLE.bit.GPIO111 = 1;
             }			
@@ -858,9 +860,16 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
                 vref = 0.2;
                 checkfronttally++;
                 if (checkfronttally > 310) { // check if LADARfront < 1.2 for 310ms or 3 LADAR samples
-                    RobotState = 10; // Wall follow
-                    WallFollowtime = 0;
-                    right_wall_follow_state = 1;
+                    if (LADARrightfront < LADARleftfront) {
+                        RobotState = 10; // Right wall follow
+                        WallFollowtime = 0;
+                        right_wall_follow_state = 1;
+                    }
+                    else {
+                        RobotState = 11; // Left wall follow
+                        WallFollowtime = 0;
+                        left_wall_follow_state = 1;
+                    }
                 }
             } else {
                 checkfronttally = 0;
@@ -877,7 +886,7 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
                 }
             } else if (right_wall_follow_state == 2) {
                 //Right Wall Follow
-                turn = Kp_right_wal*(ref_right_wall - LADARrightfront);
+                turn = Kp_right_wall*(ref_right_wall - LADARrightfront);
                 vref = foward_velocity;
                 if (LADARfront < left_turn_Start_threshold) {
                     right_wall_follow_state = 1;
@@ -897,8 +906,37 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             }
             break;
 
+        case 11:
+            if (left_wall_follow_state == 1) {
+                //Right Turn
+                turn = -Kp_front_wall*(14.5 - LADARfront);
+                vref = front_turn_velocity;
+                if (LADARfront > right_turn_Stop_threshold) {
+                    left_wall_follow_state = 2;
+                }
+            } else if (left_wall_follow_state == 2) {
+                //Left Wall Follow
+                turn = -Kp_left_wall*(ref_left_wall - LADARleftfront);
+                vref = foward_velocity;
+                if (LADARfront < right_turn_Start_threshold) {
+                    left_wall_follow_state = 1;
+                }
+            }
+            if (turn > turn_saturation) {
+                turn = turn_saturation;
+            }
+            if (turn < -turn_saturation) {
+                turn = -turn_saturation;
+            }
+
+            WallFollowtime++;
+            if ( (WallFollowtime > 5000) && (LADARfront > 1.5) ) {
+                RobotState = 1;
+                checkfronttally = 0;
+            }
+            break;
+
         case 20:
-            // put vision code here
 
             colcentroid = MaxColThreshold1 - 160;
 
@@ -912,7 +950,7 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             }
             // start kpvision out as 0.05 and kpvision could need to be negative.
 
-            if (MaxRowThreshold1 > 150){
+            if (MaxRowThreshold1 > pickupRowPurple){
                 RobotState = 22;
             }
             break;
@@ -921,8 +959,10 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             case22count ++;
             vref = 0;
             turn = 0;
-            setEPWM5A_RCServo(RCOpen);
-            setEPWM5B_RCServo(RCPurple);
+            if (case22count == 500){ //1 sec?
+                setEPWM5A_RCServo(RCOpen);
+                setEPWM5B_RCServo(RCPurple);
+            }
             if (case22count == 1000){ //1 sec?
                 RobotState = 24;
                 case22count = 0;
@@ -933,7 +973,7 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             case24count ++;
             vref = 0.5;
             turn = 0;
-            if (case24count == 3000){ //1 sec?
+            if (case24count == pickupTime){
                 RobotState = 26;
                 case24count = 0;
             }
@@ -948,6 +988,10 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             if (case26count == 1000){ //1 sec?
                 RobotState = 1;
                 case26count = 0;
+                ballX = ROBOTps.x;
+                ballY = ROBOTps.y;
+                ballcolor = 0; //orange
+                ballcount++;
             }
             break;
 
@@ -964,9 +1008,8 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
                 vref = 0.75;
                 turn = kpvision*(0 - colcentroid);
             }
-            // start kpvision out as 0.05 and kpvision could need to be negative.
 
-            if (MaxRowThreshold2 > 150){
+            if (MaxRowThreshold2 > pickupRowOrange){
                 RobotState = 32;
             }
             break;
@@ -975,9 +1018,11 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             case32count ++;
             vref = 0;
             turn = 0;
-            setEPWM5A_RCServo(RCOpen);
-            setEPWM5B_RCServo(RCOrange);
-            if (case32count == 1000){ //1 sec?
+            if (case32count == 500){
+                setEPWM5A_RCServo(RCOpen);
+                setEPWM5B_RCServo(RCOrange);
+            }
+            if (case32count == 1000){
                 RobotState = 34;
                 case32count = 0;
             }
@@ -987,7 +1032,7 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             case34count ++;
             vref = 0.5;
             turn = 0;
-            if (case34count == 3000){ //1 sec?
+            if (case34count == pickupTime){ //1 sec?
                 RobotState = 36;
                 case34count = 0;
             }
@@ -1002,7 +1047,12 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
             if (case36count == 1000){ //1 sec?
                 RobotState = 1;
                 case36count = 0;
+                ballX = ROBOTps.x;
+                ballY = ROBOTps.y;
+                ballcolor = 1; //orange
+                ballcount++;
             }
+
             break;
         default:
             break;
@@ -1022,18 +1072,18 @@ __interrupt void SWI1_HighestPriority(void)     // EMIF_ERROR
         if((timecount%250) == 0) {
             DataToLabView.floatData[0] = ROBOTps.x;
             DataToLabView.floatData[1] = ROBOTps.y;
-            DataToLabView.floatData[2] = ball1X; //Grabbed Ball X
-            DataToLabView.floatData[3] = ball1Y; //Grabbed Ball Y
-            DataToLabView.floatData[4] = ball1color; //Grabbed Ball Color
-            DataToLabView.floatData[5] = ball2Y;
-            DataToLabView.floatData[6] = ball3X;
-            DataToLabView.floatData[7] = ball3Y;
+            DataToLabView.floatData[2] = ballX; //Grabbed Ball X
+            DataToLabView.floatData[3] = ballY; //Grabbed Ball Y
+            DataToLabView.floatData[4] = ballcount; //Grabbed Ball Color
+            DataToLabView.floatData[5] = ballcolor;
+            DataToLabView.floatData[6] = 0;
+            DataToLabView.floatData[7] = 0;
 
-//            DataToLabView.floatData[2] = ROBOTps.theta;
-//            DataToLabView.floatData[3] = (float)timecount;
-//            DataToLabView.floatData[4] = 0.5*(LeftVel + RightVel);
-//            DataToLabView.floatData[5] = (float)RobotState;
-//            DataToLabView.floatData[6] = (float)statePos;
+            //            DataToLabView.floatData[2] = ROBOTps.theta;
+            //            DataToLabView.floatData[3] = (float)timecount;
+            //            DataToLabView.floatData[4] = 0.5*(LeftVel + RightVel);
+            //            DataToLabView.floatData[5] = (float)RobotState;
+            //            DataToLabView.floatData[6] = (float)statePos;
 
             LVsenddata[0] = '*';  // header for LVdata
             LVsenddata[1] = '$';
@@ -1103,6 +1153,13 @@ __interrupt void SWI2_MiddlePriority(void)     // RAM_CORRECTABLE_ERROR
                 LADARrightfront = ladar_data[LADARi].distance_ping;
             }
         }
+        // LADARleftfront is the min of dist 170, 171, 172, 173, 174
+        LADARleftfront = 19; // 19 is greater than max feet
+        for (LADARi = 170; LADARi <= 174 ; LADARi++) {
+            if (ladar_data[LADARi].distance_ping < LADARleftfront) {
+                LADARleftfront = ladar_data[LADARi].distance_ping;
+            }
+        }
         // LADARfront is the min of dist 111, 112, 113, 114, 115
         LADARfront = 19;
         for (LADARi = 111; LADARi <= 115 ; LADARi++) {
@@ -1124,6 +1181,13 @@ __interrupt void SWI2_MiddlePriority(void)     // RAM_CORRECTABLE_ERROR
         for (LADARi = 52; LADARi <= 56 ; LADARi++) {
             if (ladar_data[LADARi].distance_pong < LADARrightfront) {
                 LADARrightfront = ladar_data[LADARi].distance_pong;
+            }
+        }
+        // LADARleftfront is the min of dist 170, 171, 172, 173, 174
+        LADARleftfront = 19; // 19 is greater than max feet
+        for (LADARi = 170; LADARi <= 174 ; LADARi++) {
+            if (ladar_data[LADARi].distance_ping < LADARleftfront) {
+                LADARleftfront = ladar_data[LADARi].distance_ping;
             }
         }
         // LADARfront is the min of dist 111, 112, 113, 114, 115
